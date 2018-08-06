@@ -1,7 +1,7 @@
 picc1101
 ========
 
-Connect Raspberry-Pi to CC1101 RF module and play with AX.25/KISS to transmit TCP/IP over the air.
+Connect Orange Pi to CC1101 RF module and play with AX.25/KISS to transmit TCP/IP over the air.
 
 - [picc1101](#picc1101)
 - [Introduction](#introduction)
