@@ -595,9 +595,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // . bit  2:   1  -> CRC enabled
     // . bits 1:0: xx -> Packet length mode. Taken from radio config.
     reg_word = (arguments->whitening<<6) + 0x04 + (int) radio_parms->packet_config;
-    
-    //nutiu PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, reg_word); // Packet automation control.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, 0x05); // Packet automation control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, reg_word); // Packet automation control.
 
     // PKTCTRL1: Packet automation control #1
     // . bits 7:5: 000 -> Preamble quality estimator threshold
@@ -605,30 +603,20 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // . bit  3:   0   -> Automatic flush of Rx FIFO disabled (too many side constraints see doc)
     // . bit  2:   1   -> Append two status bytes to the payload (RSSI and LQI + CRC OK)
     // . bits 1:0: 00  -> No address check of received packets
-    //nutiu PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL1, 0x04); // Packet automation control.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL1, 0x06); // Packet automation control.
-    
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL1, 0x04); // Packet automation control.
 
-    #define CC1101_DEFVAL_SYNC1      0xB5        // Synchronization word, high byte
-#define CC1101_DEFVAL_SYNC0      0x47        // Synchronization word, low byte
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_SYNC1, CC1101_DEFVAL_SYNC1);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_SYNC0, CC1101_DEFVAL_SYNC0);
-    
-    //nutiu PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration (unused, see just above).
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_ADDR,     0xFF);
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration (unused, see just above).
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_CHANNR,   0x00); // Channel number (unused, use direct frequency programming).
-
 
     // FSCTRL0: Frequency offset added to the base frequency before being used by the
     // frequency synthesizer. (2s-complement). Multiplied by Fxtal/2^14
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL0,  0x00); // Freq synthesizer control.
-    
+
     // FSCTRL1: The desired IF frequency to employ in RX. Subtracted from FS base frequency
     // in RX and controls the digital complex mixer in the demodulator. Multiplied by Fxtal/2^10
     // Here 0.3046875 MHz (lowest point below 310 kHz)
     radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);    
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, 0x08); // Freq synthesizer control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
 
     // FREQ2..0: Base frequency for the frequency sythesizer
     // Fo = (Fxosc / 2^16) * FREQ[23..0]
@@ -637,13 +625,9 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // FREQ0 is FREQ[7..0]
     // Fxtal = 26 MHz and FREQ = 0x10A762 => Fo = 432.99981689453125 MHz
     radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
-
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2,    0x10); // Freq control word, high byte
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1,    0xB1); // Freq control word, mid byte.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0,    0x86);       // Freq control word, low byte.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
 
     // MODCFG4 Modem configuration - bandwidth and data rate exponent
     // High nibble: Sets the decimation ratio for the delta-sigma ADC input stream hence the channel bandwidth
@@ -654,19 +638,12 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // Low nibble:
     // . bits 3:0: 13 -> DRATE_E: data rate base 2 exponent => here 13 (multiply by 8192)
     reg_word = (radio_parms->chanbw_e<<6) + (radio_parms->chanbw_m<<4) + radio_parms->drate_e;
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
-    #define CC1101_DEFVAL_MDMCFG4    0xCA        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG3    0x83        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG2    0x93        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG1    0x22        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG0    0xF8        // Modem Configuration
-#define CC1101_DEFVAL_DEVIATN    0x35        // Modem Deviation Setting
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  CC1101_DEFVAL_MDMCFG4); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
 
     // MODCFG3 Modem configuration: DRATE_M data rate mantissa as per formula:
     //    Rate = (256 + DRATE_M).2^DRATE_E.Fxosc / 2^28 
     // Here DRATE_M = 59, DRATE_E = 13 => Rate = 250 kBaud
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG3,  CC1101_DEFVAL_MDMCFG3); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG3,  radio_parms->drate_m); // Modem configuration.
 
     // MODCFG2 Modem configuration: DC block, modulation, Manchester, sync word
     // o bit 7:    0   -> Enable DC blocking (1: disable)
@@ -674,7 +651,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bit 3:    0   -> Manchester disabled (1: enable)
     // o bits 2:0: 011 -> Sync word qualifier is 30/32 (static init in radio interface)
     reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  CC1101_DEFVAL_MDMCFG2); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  reg_word); // Modem configuration.
 
     // MODCFG1 Modem configuration: FEC, Preamble, exponent for channel spacing
     // o bit 7:    0   -> FEC disabled (1: enable)
@@ -682,12 +659,12 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bits 3:2: unused
     // o bits 1:0: CHANSPC_E: exponent of channel spacing (here: 2)
     reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  CC1101_DEFVAL_MDMCFG1); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  reg_word); // Modem configuration.
 
     // MODCFG0 Modem configuration: CHANSPC_M: mantissa of channel spacing following this formula:
     //    Df = (Fxosc / 2^18) * (256 + CHANSPC_M) * 2^CHANSPC_E
     //    Here: (26 /  ) * 2016 = 0.199951171875 MHz (200 kHz)
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG0,  CC1101_DEFVAL_MDMCFG0); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG0,  radio_parms->chanspc_m); // Modem configuration.
 
     // DEVIATN: Modem deviation
     // o bit 7:    0   -> not used
@@ -706,7 +683,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   OOK      : No effect
     //    
     reg_word = (radio_parms->deviat_e<<4) + (radio_parms->deviat_m);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_DEVIATN,  CC1101_DEFVAL_DEVIATN); // Modem dev (when FSK mod en)
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_DEVIATN,  reg_word); // Modem dev (when FSK mod en)
 
     // MCSM2: Main Radio State Machine. See documentation.
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM2 ,   0x00); //MainRadio Cntrl State Machine
@@ -764,8 +741,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01): ±BW CHAN /8
     //   2 (10): ±BW CHAN /4
     //   3 (11): ±BW CHAN /2
-    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG,   0x1D); // Freq Offset Compens. Config
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG,   0x16); // Freq Offset Compens. Config
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG,   0x1D); // Freq Offset Compens. Config
 
     // BSCFG:Bit Synchronization Configuration
     // o bits 7:6: BS_PRE_KI: Clock recovery loop integral gain before sync word
@@ -789,7 +765,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01): ±3.125 % data rate offset
     //   2 (10): ±6.25 % data rate offset
     //   3 (11): ±12.5 % data rate offset
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_BSCFG,    0x6C); //  Bit synchronization config.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_BSCFG,    0x1C); //  Bit synchronization config.
 
     // AGCCTRL2: AGC Control
     // o bits 7:6: MAX_DVGA_GAIN. Allowable DVGA settings
@@ -815,10 +791,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   5 (101): 38 dB
     //   6 (110): 40 dB
     //   7 (111): 42 dB
-    #define CC1101_DEFVAL_AGCCTRL2   0x43        // AGC Control
-#define CC1101_DEFVAL_AGCCTRL1   0x40        // AGC Control
-#define CC1101_DEFVAL_AGCCTRL0   0x91        // AGC Control
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL2, CC1101_DEFVAL_AGCCTRL2); // AGC control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL2, 0xC7); // AGC control.
 
     // AGCCTRL1: AGC Control
     // o bit 7: not used
@@ -833,7 +806,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bits 3:0: CARRIER_SENSE_ABS_THR: Sets the absolute RSSI threshold for asserting carrier sense. 
     //   The 2-complement signed threshold is programmed in steps of 1 dB and is relative to the MAGN_TARGET setting.
     //   0 is at MAGN_TARGET setting.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL1, CC1101_DEFVAL_AGCCTRL1); // AGC control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL1, 0x00); // AGC control.
 
     // AGCCTRL0: AGC Control
     // o bits 7:6: HYST_LEVEL: Sets the level of hysteresis on the magnitude deviation
@@ -860,7 +833,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01):       16: 8 dB
     //   2 (10):       32: 12 dB
     //   3 (11):       64: 16 dB  
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL0, CC1101_DEFVAL_AGCCTRL0); // AGC control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL0, 0xB2); // AGC control.
 
     // FREND1: Front End RX Configuration
     // o bits 7:6: LNA_CURRENT: Adjusts front-end LNA PTAT current output
@@ -886,22 +859,16 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   Studio software.
     // o bits 5:4: CHP_CURR_CAL_EN: Disable charge pump calibration stage when 0.
     // o bits 3:0: FSCAL3: Frequency synthesizer calibration result register.
-    #define CC1101_DEFVAL_FSCAL3     0xE9        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL2     0x2A        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL1     0x00        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL0     0x1F        // Frequency Synthesizer Calibration
-
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL3,   CC1101_DEFVAL_FSCAL3); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL3,   0xEA); // Frequency synthesizer cal.
 
     // FSCAL2: Frequency Synthesizer Calibration
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL2,   CC1101_DEFVAL_FSCAL2); // Frequency synthesizer cal.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL1,   CC1101_DEFVAL_FSCAL1); // Frequency synthesizer cal.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL0,   CC1101_DEFVAL_FSCAL0); // Frequency synthesizer cal.
-    
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL2,   0x0A); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL1,   0x00); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL0,   0x11); // Frequency synthesizer cal.
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSTEST,   0x59); // Frequency synthesizer cal.
 
     // TEST2: Various test settings. The value to write in this field is given by the SmartRF Studio software.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST2,    0x81); // Various test settings.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST2,    0x88); // Various test settings.
 
     // TEST1: Various test settings. The value to write in this field is given by the SmartRF Studio software.
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST1,    0x31); // Various test settings.

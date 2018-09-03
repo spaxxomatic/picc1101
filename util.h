@@ -13,7 +13,7 @@ int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *
 uint32_t ts_us(struct timeval *x);
 
 #if !defined(MAX_VERBOSE_LEVEL)
-#   define MAX_VERBOSE_LEVEL 0
+#   define MAX_VERBOSE_LEVEL 10
 #endif
 #define verbprintf(level, ...) \
     do { if (level <= MAX_VERBOSE_LEVEL) _verbprintf(level, __VA_ARGS__); } while (0)
