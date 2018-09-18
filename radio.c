@@ -446,10 +446,11 @@ void init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments)
 
     wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &int_packet);       // set interrupt handler for packet interrupts
 
-    if (arguments->packet_length >= PI_CCxxx0_FIFO_SIZE)
+    /*if (arguments->packet_length >= PI_CCxxx0_FIFO_SIZE)
     {
         wiringPiISR(WPI_GDO2, INT_EDGE_BOTH, &int_threshold); // set interrupt handler for FIFO threshold interrupts
     }
+    */
 
     verbprintf(1, "Unit delay .............: %d us\n", radio_int_data.wait_us);
     verbprintf(1, "Packet delay ...........: %d us\n", arguments->packet_delay * radio_int_data.wait_us);
@@ -493,7 +494,7 @@ void init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments)
     radio_parms->chanspc_e     = 0;                // Do not use channel spacing for the moment defaulting to 0
     radio_parms->modulation    = (radio_modulation_t) arguments->modulation;
     radio_parms->fec           = arguments->fec;
-    radio_int_data.packet_length = arguments->packet_length;
+    //radio_int_data.packet_length = arguments->packet_length;
 
     if (arguments->variable_length)
     {
@@ -528,8 +529,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
         if (ret == 0)
         {
             fprintf(stderr, "RADIO: real time OK\n");
-        }
-        else
+        }else
         {
             perror("RADIO: cannot set in real time");
         }
@@ -1101,13 +1101,13 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
 
             if (block_count != block_countdown)
             {
-                verbprintf(1, "RADIO: block sequence error, aborting packet\n");
+                verbprintf(1, "RADIO: block sequence error\n");
                 return 0;
             }
 
             if (!crc)
             {
-                verbprintf(1, "RADIO: CRC error, aborting packet\n");
+                verbprintf(1, "RADIO: CRC error\n");
                 return 0;
             }
 

@@ -147,7 +147,7 @@
 
 // Various constants
 #define PI_CCxxx0_FIFO_SIZE         64     // Rx or Tx FIFO size
-#define PI_CCxxx0_PACKET_COUNT_SIZE 255    // Packet bytes maximum count
+#define PI_CC1101_DATA_LEN          PI_CCxxx0_FIFO_SIZE - 3
 
 // FSM states
 typedef enum ccxxx0_state_e {

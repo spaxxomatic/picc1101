@@ -83,9 +83,10 @@ typedef enum radio_mode_e
 {
     RADIOMODE_NONE = 0,
     RADIOMODE_RX,
-    RADIOMODE_TX,
-    NUM_RADIOMODE
+    RADIOMODE_TX
 } radio_mode_t;
+
+#define BUFF_SIZE 255
 
 typedef volatile struct radio_int_data_s 
 {
@@ -95,9 +96,9 @@ typedef volatile struct radio_int_data_s
     uint8_t      packet_length;          // Fixed legth of packet or maximum length if variable
     uint32_t     packet_rx_count;        // Number of packets received since put into action
     uint32_t     packet_tx_count;        // Number of packets sent since put into action
-    uint8_t      tx_buf[PI_CCxxx0_PACKET_COUNT_SIZE+2]; // Tx buffer
+    uint8_t      tx_buf[BUFF_SIZE + 2]; // Tx buffer
     uint8_t      tx_count;               // Number of bytes in Tx buffer
-    uint8_t      rx_buf[PI_CCxxx0_PACKET_COUNT_SIZE+2]; // Rx buffer
+    uint8_t      rx_buf[BUFF_SIZE + 2]; // Rx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
     uint8_t      bytes_remaining;        // Bytes remaining to be read from or written to buffer (composite mode)
     uint8_t      byte_index;             // Current byte index in buffer

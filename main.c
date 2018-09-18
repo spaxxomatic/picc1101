@@ -18,7 +18,7 @@
 #include "serial.h"
 #include "pi_cc_spi.h"
 #include "radio.h"
-#include "kiss.h"
+#include "server.h"
 
 arguments_t   arguments;
 serial_t      serial_parameters;
@@ -77,7 +77,6 @@ uint8_t nb_preamble_bytes[] = {
 /***** Argp configuration start *****/
 
 const char *argp_program_version = "PiCC1101 0.1";
-const char *argp_program_bug_address = "<f4exb06@gmail.com>";
 static char doc[] = "PiCC1101 -- Raspberry Pi serial radio link using CC1101 module.";
 static char args_doc[] = "";
 
@@ -94,7 +93,6 @@ static struct argp_option options[] = {
     {"fec",  'F', 0, 0, "Activate FEC (default off)"},
     {"whitening",  'W', 0, 0, "Activate whitening (default off)"},
     {"frequency",  'f', "FREQUENCY_HZ", 0, "Frequency in Hz (default: 433600000)"},
-    {"packet-length",  'P', "PACKET_LENGTH", 0, "Packet length (fixed) or maximum packet length (variable) (default: 250)"},
     {"variable-length",  'V', 0, 0, "Variable packet length. Given packet length becomes maximum length (default off)"},
     {"test-mode",  't', "TEST_SCHEME", 0, "Test scheme, See long help (-H) option fpr details (default : 0 no test)"},
     {"test-phrase",  'y', "TEST_PHRASE", 0, "Set a test phrase to be used in test (default : \"Hello, World!\")"},
@@ -102,11 +100,6 @@ static struct argp_option options[] = {
     {"radio-status",  's', 0, 0, "Print radio status and exit"},
     {"tnc-serial-device",  'D', "SERIAL_DEVICE", 0, "TNC Serial device, (default : /var/ax25/axp2)"},
     {"tnc-serial-speed",  'B', "SERIAL_SPEED", 0, "TNC Serial speed in Bauds (default : 9600)"},
-    {"tnc-serial-window",  300, "TX_WINDOW_US", 0, "TNC time window in microseconds for concatenating serial frames. 0: no concatenation (default: 40ms))"},
-    {"tnc-radio-window",  301, "RX_WINDOW_US", 0, "TNC time window in microseconds for concatenating radio frames. 0: no concatenation (default: 0))"},
-    {"tnc-keyup-delay",  302, "KEYUP_DELAY_US", 0, "TNC keyup delay in microseconds (default: 10ms). In KISS mode it can be changed live via kissparms."},
-    {"tnc-keydown-delay",  303, "KEYDOWN_DELAY_US", 0, "FUTUR USE: TNC keydown delay in microseconds (default: 0 inactive)"},
-    {"tnc-switchover-delay",  304, "SWITCHOVER_DELAY_US", 0, "FUTUR USE: TNC switchover delay in microseconds (default: 0 inactive)"},
     {0}
 };
 
@@ -174,7 +167,7 @@ static void init_args(arguments_t *arguments)
     arguments->packet_delay = 30;
     arguments->modulation_index = 0.5;
     arguments->freq_hz = 433600000;
-    arguments->packet_length = 250;
+    //arguments->packet_length = 250;
     arguments->variable_length = 0;
     arguments->test_mode = TEST_NONE;
     arguments->test_phrase = strdup("Hello, World!");
@@ -224,7 +217,7 @@ static void print_args(arguments_t *arguments)
     fprintf(stderr, "Packet delay ........: ~%d bytes with 2-FSK\n", arguments->packet_delay);
     fprintf(stderr, "Modulation index ....: %.2f\n", arguments->modulation_index);
     fprintf(stderr, "Frequency ...........: %d Hz\n", arguments->freq_hz);
-    fprintf(stderr, "Packet length .......: %d bytes\n", arguments->packet_length);
+    //fprintf(stderr, "Packet length .......: %d bytes\n", arguments->packet_length);
     fprintf(stderr, "Variable length .....: %s\n", (arguments->variable_length ? "yes" : "no"));
     fprintf(stderr, "Preamble size .......: %d bytes\n", nb_preamble_bytes[arguments->preamble]);
     fprintf(stderr, "FEC .................: %s\n", (arguments->fec ? "on" : "off"));
@@ -242,26 +235,6 @@ static void print_args(arguments_t *arguments)
     fprintf(stderr, "TNC device ..........: %s\n", arguments->serial_device);
     fprintf(stderr, "TNC speed ...........: %d Baud\n", arguments->serial_speed_n);
 
-    if (arguments->tnc_serial_window)
-    {
-        fprintf(stderr, "TNC serial window ...: %.2f ms\n", arguments->tnc_serial_window / 1000.0);
-    }
-    else
-    {
-        fprintf(stderr, "TNC serial window ...: none\n");   
-    }
-
-    if (arguments->tnc_radio_window)
-    {
-        fprintf(stderr, "TNC radio window ....: %.2f ms\n", arguments->tnc_radio_window / 1000.0);
-    }
-    else
-    {
-        fprintf(stderr, "TNC radio window ....: none\n");   
-    }
-
-    fprintf(stderr, "TNC keyup delay .....: %.2f ms\n", arguments->tnc_keyup_delay / 1000.0);
-    fprintf(stderr, "TNC keydown delay ...: %.2f ms\n", arguments->tnc_keydown_delay / 1000.0);
     fprintf(stderr, "TNC switch delay ....: %.2f ms\n", arguments->tnc_switchover_delay / 1000.0);
 }
 
@@ -375,29 +348,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             if (*end)
                 argp_usage(state);
             break; 
-        // Packet length
-        case 'P':
-            arguments->packet_length = strtol(arg, &end, 10) % 256;
-            if (*end)
-                argp_usage(state);
-            break; 
         // Packet delay
         case 'l':
             arguments->packet_delay = strtol(arg, &end, 10);
             if (*end)
                 argp_usage(state);
             break; 
-        // Variable length packet
-        case 'V':
-            if (ALLOW_VAR_BLOCKS)
-            {
-                arguments->variable_length = 1;
-            }
-            else
-            {
-                fprintf(stderr, "Variable length blocks are not allowed (yet?)\n");
-            }
-            break;
         // Real time scheduling
         case 'T':
             if (ALLOW_REAL_TIME)

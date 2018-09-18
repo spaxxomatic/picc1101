@@ -1,2 +1,4 @@
 *.o
 picc1101
+.vscode
+out

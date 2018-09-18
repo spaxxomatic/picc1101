@@ -119,20 +119,6 @@ You can use option -T of the program to get an even lower priority of -2 for a s
   -s, --radio-status         Print radio status and exit
   -t, --test-mode=TEST_SCHEME   Test scheme, See long help (-H) option fpr
                              details (default : 0 no test)
-      --tnc-keydown-delay=KEYDOWN_DELAY_US
-                             FUTUR USE: TNC keydown delay in microseconds
-                             (default: 0 inactive)
-      --tnc-keyup-delay=KEYUP_DELAY_US
-                             TNC keyup delay in microseconds (default: 4ms).
-                             In KISS mode it can be changed live via
-                             kissparms.
-      --tnc-radio-window=RX_WINDOW_US
-                             TNC time window in microseconds for concatenating
-                             radio frames. 0: no concatenation (default: 0))
-      --tnc-serial-window=TX_WINDOW_US
-                             TNC time window in microseconds for concatenating
-                             serial frames. 0: no concatenation (default:
-                             40ms))
       --tnc-switchover-delay=SWITCHOVER_DELAY_US
                              FUTUR USE: TNC switchover delay in microseconds
                              (default: 0 inactive)
