@@ -24,6 +24,7 @@
 
 #include "register.h"
 #include "swstatus.h"
+#include <stddef.h>
 
 byte regIndex = 0;
 

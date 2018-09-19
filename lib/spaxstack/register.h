@@ -24,7 +24,7 @@
 
 #ifndef _REGISTER_H
 #define _REGISTER_H
-#include "types.h"
+#include "../types.h"
 
 extern byte regIndex;
 

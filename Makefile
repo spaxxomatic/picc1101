@@ -26,11 +26,11 @@ register.o: lib/spaxstack/register.h lib/spaxstack/register.cpp
 serial.o: lib/radio/params.h serial.h serial.c
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/serial.o serial.c
 
-pi_cc_spi.o: lib/radio/params.h lib/radio/pi_cc_spi.h lib/radio/pi_cc_spi.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o lib/radio/pi_cc_spi.c
+pi_cc_spi.o: lib/radio/params.h lib/radio/pi_cc_spi.h lib/radio/pi_cc_spi.cpp
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o lib/radio/pi_cc_spi.cpp
 
-radio.o: lib/radio/params.h lib/radio/radio.h lib/radio/radio.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/radio.o lib/radio/radio.c
+radio.o: lib/radio/params.h lib/radio/radio.h lib/radio/radio.cpp
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/radio.o lib/radio/radio.cpp
 
 server.o: lib/radio/params.h server.h server.cpp
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/server.o server.cpp

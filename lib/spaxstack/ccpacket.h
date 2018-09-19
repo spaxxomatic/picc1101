@@ -24,7 +24,7 @@
 
 #ifndef _CCPACKET_H
 #define _CCPACKET_H
-#include "types.h"
+#include "../types.h"
 /**
  * Buffer and data lengths
  */

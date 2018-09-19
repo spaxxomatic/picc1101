@@ -15,12 +15,13 @@
 #include <wiringPi.h>
 
 #include "params.h"
-#include "util.h"
+#include "../../util.h"
 #include "radio.h"
 #include "pi_cc_spi.h"
-#include "pi_cc_cc1100-cc2500.h"
+#include "cc1101_defvals.h"
+#include "pi_cc_cc1101.h"
 
-char *state_names[] = {
+const char *state_names[] = {
     "SLEEP",            // 00
     "IDLE",             // 01
     "XOFF",             // 02
@@ -92,15 +93,13 @@ static void     get_chanbw_words(float bw, radio_parms_t *radio_parms);
 static void     get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms);
 static void     wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeout);
 static void     print_received_packet(int verbose_min);
-static void     radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown);
-static uint8_t  radio_receive_block(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *block, uint32_t *size, uint8_t *crc);
 static uint8_t  crc_check(uint8_t *block);
 
 // === Interupt handlers ==========================================================================
 
 // ------------------------------------------------------------------------------------------------
 // Processes packets up to 255 bytes
-
+/* nutiu remove after port
 byte receiveData(CCPACKET * packet)
 {
   byte val;
@@ -140,7 +139,7 @@ byte receiveData(CCPACKET * packet)
 
   return packet->length;
 }
-
+*/
 void irq_handle_packet(void)
 // ------------------------------------------------------------------------------------------------
 {
@@ -440,7 +439,7 @@ void print_received_packet(int verbose_min)
     int i;
 
     verbprintf(verbose_min, "Rx: packet length %d, FIFO was hit %d times\n", 
-        radio_int_data.rx_count,
+        radio_int_data.length,
         radio_int_data.threshold_hits);
     print_block(verbose_min+2, (uint8_t *) radio_int_data.rx_buf, radio_int_data.rx_count);
 
@@ -1095,23 +1094,21 @@ void radio_init_rx(spi_parms_t *spi_parms)
 
 // ------------------------------------------------------------------------------------------------
 // Receive of a block
-uint8_t radio_receive_block(arguments_t *arguments, uint8_t *block, uint32_t *size, uint8_t *crc)
+uint8_t radio_receive_block(uint8_t *block, uint32_t *size, uint8_t *crc)
 // ------------------------------------------------------------------------------------------------
-{
-    uint8_t block_countdown, block_size;
+{    
+    *crc = radio_int_data.crc_ok;
+    //*crc = (radio_int_data.rx_buf[radio_int_data.rx_count - 1] & 0x80)>>7;
 
-    block_size = radio_int_data.rx_buf[0] - 1; // remove block countdown byte
-    block_countdown = radio_int_data.rx_buf[1];
+    //memcpy(block, (uint8_t *) &radio_int_data.rx_buf[2], block_size);
+    memcpy(block, (uint8_t *) radio_int_data.data, radio_int_data.length);
+    
+    *size = radio_int_data.length;
 
-    *crc = (radio_int_data.rx_buf[radio_int_data.rx_count - 1] & 0x80)>>7;
-
-    memcpy(block, (uint8_t *) &radio_int_data.rx_buf[2], block_size);
-    *size += block_size;
-
-    verbprintf(1, "Rx: packet #%d:%d >%d\n", radio_int_data.packet_rx_count, block_countdown, *size);
+    verbprintf(1, "Rx: packet #%d >%d\n", radio_int_data.packet_rx_count, *size);
     print_received_packet(2);
 
-    return block_countdown; // block countdown
+    return radio_int_data->length;
 }
 
 /*
@@ -1161,7 +1158,7 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
 
 // ------------------------------------------------------------------------------------------------
 // Transmission of a block
-void radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown)
+bool radio_send_block(spi_parms_t *spi_parms)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t  initial_tx_count; // Number of bytes to send in first batch
@@ -1180,7 +1177,7 @@ void radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown)
     //nutiu
     if (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1){
         verbprintf(1, "Tx: packet too big\n");
-        reuturn false;
+        return false;
     }
     initial_tx_count = (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1 ? PI_CCxxx0_FIFO_SIZE-1 : radio_int_data.tx_count);
 
@@ -1197,11 +1194,12 @@ void radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown)
         radio_wait_a_bit(4);
     }
 
-    verbprintf(1, "Tx: packet #%d:%d\n", radio_int_data.packet_tx_count, block_countdown);
+    verbprintf(1, "Tx: packet #%d\n", radio_int_data.packet_tx_count);
     print_block(4, (uint8_t *) radio_int_data.tx_buf, radio_int_data.tx_count);
 
     blocks_sent = radio_int_data.packet_tx_count;
     verbprintf(2,"Tx: packet length %d, FIFO threshold was hit %d times\n", radio_int_data.tx_count, radio_int_data.threshold_hits);
+    return true;
 }
 
 /*

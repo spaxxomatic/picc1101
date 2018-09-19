@@ -11,7 +11,7 @@
 #define _RADIO_H_
 
 #include "pi_cc_spi.h"
-#include "pi_cc_cc1100-cc2500.h"
+#include "pi_cc_cc1101.h"
 #include "../spaxstack/ccpacket.h"
 
 #define WPI_GDO0 5 // For Wiring Pi, 5 is GPIO_24 connected to GDO0
@@ -119,7 +119,7 @@ extern uint32_t blocks_received;
 void     init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments);
 int      init_radio(radio_parms_t *radio_parms,  spi_parms_t *spi_parms, arguments_t *arguments);
 void     init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments);
-void     radio_init_rx(spi_parms_t *spi_parms, arguments_t *arguments);
+void     radio_init_rx(spi_parms_t *spi_parms);
 void     radio_flush_fifos(spi_parms_t *spi_parms);
 
 void     radio_turn_idle(spi_parms_t *spi_parms);
@@ -135,7 +135,10 @@ float    radio_get_byte_time(radio_parms_t *radio_parms);
 void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
-void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
+static bool     radio_send_block(spi_parms_t *spi_parms);
+static uint8_t  radio_receive_block(uint8_t *block, uint32_t *size, uint8_t *crc);
+
+//void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
 //uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);
 
 #endif
