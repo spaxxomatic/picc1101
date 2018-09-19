@@ -13,19 +13,20 @@
 #include <string.h>
 #include <signal.h>
 
-#include "main.h"
+#include "lib/radio/params.h"
 #include "util.h"
 #include "serial.h"
-#include "pi_cc_spi.h"
-#include "radio.h"
+#include "lib/radio/pi_cc_spi.h"
+#include "lib/radio/radio.h"
 #include "server.h"
+#include "test.h"
 
 arguments_t   arguments;
 serial_t      serial_parameters;
 spi_parms_t   spi_parameters;
 radio_parms_t radio_parameters;
 
-char *test_mode_names[] = {
+char const *test_mode_names[] = {
     "No test",
     "Simple Tx with polling. Packet < 64 bytes",
     "Simple Tx with packet interrupt handling. Packet up to 255 bytes",
@@ -35,7 +36,7 @@ char *test_mode_names[] = {
     "Simple echo test starting with Rx"
 };
 
-char *modulation_names[] = {
+char const *modulation_names[] = {
     "OOK",
     "2-FSK",
     "4-FSK",
@@ -167,8 +168,6 @@ static void init_args(arguments_t *arguments)
     arguments->packet_delay = 30;
     arguments->modulation_index = 0.5;
     arguments->freq_hz = 433600000;
-    //arguments->packet_length = 250;
-    arguments->variable_length = 0;
     arguments->test_mode = TEST_NONE;
     arguments->test_phrase = strdup("Hello, World!");
     arguments->repetition = 1;
@@ -217,8 +216,6 @@ static void print_args(arguments_t *arguments)
     fprintf(stderr, "Packet delay ........: ~%d bytes with 2-FSK\n", arguments->packet_delay);
     fprintf(stderr, "Modulation index ....: %.2f\n", arguments->modulation_index);
     fprintf(stderr, "Frequency ...........: %d Hz\n", arguments->freq_hz);
-    //fprintf(stderr, "Packet length .......: %d bytes\n", arguments->packet_length);
-    fprintf(stderr, "Variable length .....: %s\n", (arguments->variable_length ? "yes" : "no"));
     fprintf(stderr, "Preamble size .......: %d bytes\n", nb_preamble_bytes[arguments->preamble]);
     fprintf(stderr, "FEC .................: %s\n", (arguments->fec ? "on" : "off"));
     fprintf(stderr, "Whitening ...........: %s\n", (arguments->whitening ? "on" : "off"));
@@ -288,7 +285,7 @@ static rate_t get_rate(uint8_t rate_index)
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
 // ------------------------------------------------------------------------------------------------
 {
-    arguments_t *arguments = state->input;
+    arguments_t *arguments = (arguments_t*) state->input;
     char        *end;  // Used to indicate if ASCII to int was successful
     uint8_t     i8;
     uint32_t    i32;
@@ -539,8 +536,8 @@ int main (int argc, char **argv)
     }
     else
     {
-        kiss_init(&arguments);
-        kiss_run(&serial_parameters, &spi_parameters, &arguments);    
+        server_init(&arguments);
+        server_run(&serial_parameters, &spi_parameters, &arguments);    
     }
 
     delete_args(&arguments);

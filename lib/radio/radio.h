@@ -12,6 +12,7 @@
 
 #include "pi_cc_spi.h"
 #include "pi_cc_cc1100-cc2500.h"
+#include "../spaxstack/ccpacket.h"
 
 #define WPI_GDO0 5 // For Wiring Pi, 5 is GPIO_24 connected to GDO0
 #define WPI_GDO2 6 // For Wiring Pi, 6 is GPIO_25 connected to GDO2
@@ -75,7 +76,7 @@ typedef enum radio_int_scheme_e
 {
     RADIOINT_NONE = 0,   // Do not use interrupts
     RADIOINT_SIMPLE,     // Interrupts for packets fitting in FIFO
-    RADIOINT_COMPOSITE,  // Interrupts for amy packet length up to 255
+    RADIOINT_COMPOSITE,  // Interrupts for any packet length up to 255
     NUM_RADIOINT
 } radio_int_scheme_t;
 
@@ -86,7 +87,7 @@ typedef enum radio_mode_e
     RADIOMODE_TX
 } radio_mode_t;
 
-#define BUFF_SIZE 255
+#define BUFF_SIZE 32
 
 typedef volatile struct radio_int_data_s 
 {
@@ -96,9 +97,9 @@ typedef volatile struct radio_int_data_s
     uint8_t      packet_length;          // Fixed legth of packet or maximum length if variable
     uint32_t     packet_rx_count;        // Number of packets received since put into action
     uint32_t     packet_tx_count;        // Number of packets sent since put into action
-    uint8_t      tx_buf[BUFF_SIZE + 2]; // Tx buffer
+    CCPACKET     tx_buf[BUFF_SIZE]; // Tx buffer
     uint8_t      tx_count;               // Number of bytes in Tx buffer
-    uint8_t      rx_buf[BUFF_SIZE + 2]; // Rx buffer
+    CCPACKET     rx_buf[BUFF_SIZE]; // Rx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
     uint8_t      bytes_remaining;        // Bytes remaining to be read from or written to buffer (composite mode)
     uint8_t      byte_index;             // Current byte index in buffer
@@ -135,6 +136,6 @@ void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
 void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
-uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);
+//uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);
 
 #endif

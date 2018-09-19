@@ -6,14 +6,14 @@
 /*                      (c) Edouard Griffiths, F4EXB, 2015                    */
 /*                                                                            */
 /******************************************************************************/
-#ifndef _KISS_H_
-#define _KISS_H_
+#ifndef _SERVER_H_
+#define _SERVER_H_
 
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "main.h"
-#include "pi_cc_spi.h"
+#include "lib/radio/params.h"
+#include "lib/radio/pi_cc_spi.h"
 #include "serial.h"
 
 void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arguments);

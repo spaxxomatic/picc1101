@@ -112,9 +112,6 @@ You can use option -T of the program to get an even lower priority of -2 for a s
                              option
   -n, --repetition=REPETITION   Repetiton factor wherever appropriate, see long
                              Help (-H) option (default : 1 single)
-  -P, --packet-length=PACKET_LENGTH
-                             Packet length (fixed) or maximum packet length
-                             (variable) (default: 250)
   -R, --rate=DATA_RATE_INDEX Data rate index, See long help (-H) option
   -s, --radio-status         Print radio status and exit
   -t, --test-mode=TEST_SCHEME   Test scheme, See long help (-H) option fpr

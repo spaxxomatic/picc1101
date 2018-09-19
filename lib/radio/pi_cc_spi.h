@@ -64,7 +64,8 @@
 #include <sys/ioctl.h>
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
-#include "main.h"
+#include "types.h"
+#include "params.h"
 
 typedef struct spi_parms_s
 {

@@ -55,6 +55,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <types.h>
 
 
 #include "pi_cc_spi.h"
@@ -261,6 +262,19 @@ int PI_CC_SPIWriteBurstReg(spi_parms_t *spi_parms, uint8_t addr, const uint8_t *
     return spi_parms->ret; // returns length sent
 }
 
+byte CC1101_nutiu_readReg(byte regAddr, byte regType) 
+{
+  byte addr, val;
+
+  addr = regAddr | regType;
+  cc1101_Select();                      // Select CC1101
+  wait_Miso();                          // Wait until MISO goes low
+  spi.send(addr);                       // Send register address
+  val = spi.send(0x00);                 // Read result
+  cc1101_Deselect();                    // Deselect CC1101
+
+  return val;
+}
 // ------------------------------------------------------------------------------------------------
 int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *byte)
 // ------------------------------------------------------------------------------------------------

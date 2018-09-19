@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "main.h"
+#include "lib/radio/params.h"
 #include "serial.h"
 
 // ------------------------------------------------------------------------------------------------

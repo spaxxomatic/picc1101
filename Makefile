@@ -3,40 +3,40 @@ RM := rm
 
 EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4
 
-all: prepare picc1101 
+all: prepare rfreceiver 
 
 clean:
-	rm -f *.o picc1101
+	rm -rf out rfreceiver
 	 
 prepare:
 	$(MD) -p out
 
-picc1101: main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o register.o spaxstack.o
-	cd out; $(CCPREFIX)gcc $(LDFLAGS) -s -lm -lwiringPi -o out/picc1101 main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o spaxstack.o
+rfreceiver: main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o register.o spaxstack.o
+	cd out; $(CCPREFIX)gcc $(LDFLAGS) -s -lm -lwiringPi -o out/rfreceiver main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o spaxstack.o
 
-main.o: main.h main.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/main.o main.c
+main.o: lib/radio/params.h main.cpp
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/main.o main.cpp
 
 register.o: lib/spaxstack/register.h lib/spaxstack/register.cpp
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/register.o lib/spaxstack/register.cpp
 
-spaxstack.o: lib/spaxstack/spaxstack.h lib/spaxstack/spaxstack.cpp
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/spaxstack.o lib/spaxstack/spaxstack.cpp
+#spaxstack.o: lib/spaxstack/spaxstack.h lib/spaxstack/spaxstack.cpp
+#	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/spaxstack.o lib/spaxstack/spaxstack.cpp
 
-serial.o: main.h serial.h serial.c
+serial.o: lib/radio/params.h serial.h serial.c
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/serial.o serial.c
 
-pi_cc_spi.o: main.h pi_cc_spi.h pi_cc_spi.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o pi_cc_spi.c
+pi_cc_spi.o: lib/radio/params.h lib/radio/pi_cc_spi.h lib/radio/pi_cc_spi.c
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o lib/radio/pi_cc_spi.c
 
-radio.o: main.h radio.h radio.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/radio.o radio.c
+radio.o: lib/radio/params.h lib/radio/radio.h lib/radio/radio.c
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/radio.o lib/radio/radio.c
 
-server.o: main.h server.h server.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/server.o server.c
+server.o: lib/radio/params.h server.h server.cpp
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/server.o server.cpp
 
-test.o: test.h test.c
-	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/test.o test.c
+test.o: test.h test.cpp
+	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/test.o test.cpp
 
 util.o: util.h util.c
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/util.o util.c

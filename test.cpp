@@ -33,7 +33,7 @@ int radio_transmit_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
     {
         radio_wait_free(); // make sure no radio operation is in progress
         radio_send_packet(spi_parms, arguments, arguments->test_phrase, strlen(arguments->test_phrase));
-        radio_wait_a_bit(arguments->packet_length / 4);
+        radio_wait_a_bit(10);
     } 
 }
 
@@ -51,7 +51,7 @@ int radio_receive_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
 
     while((arguments->repetition == 0) || (packets_received < arguments->repetition))
     {
-        radio_init_rx(spi_parms, arguments); // Init for new packet to receive
+        radio_init_rx(spi_parms); // Init for new packet to receive
         radio_turn_rx(spi_parms);            // Put back into Rx
 
         do
@@ -130,7 +130,7 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
             {
                 verbprintf(0, "Receiving #%d\n", packets_received);
 
-                radio_init_rx(spi_parms, arguments); // Init for new packet to receive
+                radio_init_rx(spi_parms); // Init for new packet to receive
                 radio_turn_rx(spi_parms);            // Put back into Rx
 
                 if (timeout > 0)

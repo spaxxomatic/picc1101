@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <wiringPi.h>
 
-#include "main.h"
+#include "params.h"
 #include "util.h"
 #include "radio.h"
 #include "pi_cc_spi.h"
@@ -100,7 +100,48 @@ static uint8_t  crc_check(uint8_t *block);
 
 // ------------------------------------------------------------------------------------------------
 // Processes packets up to 255 bytes
-void int_packet(void)
+
+byte receiveData(CCPACKET * packet)
+{
+  byte val;
+  byte rxBytes;
+  // = readStatusReg(CC1101_RXBYTES);
+  PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count);
+  // Any byte waiting to be read and no overflow?
+  if (rxBytes & 0x7F && !(rxBytes & 0x80))
+  {
+    // Read data length
+    PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &x_byte);
+    packet->length = readConfigReg(CC1101_RXFIFO);
+    // If packet is too long
+    if (packet->length > CC1101_DATA_LEN)
+      packet->length = 0;   // Discard packet
+    else
+    {
+      // Read data packet
+      readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
+      // Read RSSI
+      packet->rssi = readConfigReg(CC1101_RXFIFO);
+      // Read LQI and CRC_OK
+      val = readConfigReg(CC1101_RXFIFO);
+      packet->lqi = val & 0x7F;
+      packet->crc_ok = bitRead(val, 7);
+    }
+  }
+  else
+    packet->length = 0;
+
+  setIdleState();       // Enter IDLE state
+  flushRxFifo();        // Flush Rx FIFO
+  //cmdStrobe(CC1101_SCAL);
+
+  // Back to RX state
+  setRxState();
+
+  return packet->length;
+}
+
+void irq_handle_packet(void)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t x_byte, *p_byte, int_line, rssi_dec, crc_lqi;
@@ -117,29 +158,16 @@ void int_packet(void)
                 p_radio_int_data->packet_send);
 
             p_radio_int_data->byte_index = 0;
+            radio_wait_a_bit(2);
 
-            if (p_radio_int_data->packet_config == PKTLEN_VARIABLE)
-            {
-                radio_wait_a_bit(2);
-
-                PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &x_byte);
-                p_radio_int_data->rx_buf[p_radio_int_data->byte_index++] = x_byte; // put back into resulting payoad
-                p_radio_int_data->rx_count = x_byte + 2; // Add RSSI + LQI/CRC bytes
-                p_radio_int_data->bytes_remaining = p_radio_int_data->rx_count;
-                p_radio_int_data->rx_count++; // Add count for the resulting total buffer length
+            PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &x_byte);
+            //nutiu - implement CCPACKET
+            p_radio_int_data->rx_buf[p_radio_int_data->byte_index++] = x_byte; // put back into resulting payoad
+            p_radio_int_data->rx_count = x_byte + 2; // Add RSSI + LQI/CRC bytes
+            p_radio_int_data->bytes_remaining = p_radio_int_data->rx_count;
+            p_radio_int_data->rx_count++; // Add count for the resulting total buffer length
                 
-                verbprintf(3, "%d bytes to read (variable)\n", p_radio_int_data->rx_count);                
-            }
-            else
-            {
-                //p_radio_int_data->rx_count = radio_get_packet_length(p_radio_int_data->spi_parms);
-                //p_radio_int_data->rx_count += 2; // Add RSSI + LQI/CRC bytes
-                p_radio_int_data->rx_count = p_radio_int_data->packet_length + 2;
-                p_radio_int_data->bytes_remaining = p_radio_int_data->rx_count;
-
-                verbprintf(3, "%d bytes to read (fixed)\n", p_radio_int_data->rx_count);
-            }
-
+            verbprintf(3, "%d bytes to read (variable)\n", p_radio_int_data->rx_count);                
             p_radio_int_data->packet_receive = 1; // reception is in progress
         }
         else
@@ -444,7 +472,7 @@ void init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments)
     radio_int_data.wait_us = 8000000 / rate_values[arguments->rate]; // approximately 2-FSK byte delay
     p_radio_int_data = &radio_int_data;
 
-    wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &int_packet);       // set interrupt handler for packet interrupts
+    wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet);       // set interrupt handler for packet interrupts
 
     /*if (arguments->packet_length >= PI_CCxxx0_FIFO_SIZE)
     {
@@ -494,18 +522,7 @@ void init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments)
     radio_parms->chanspc_e     = 0;                // Do not use channel spacing for the moment defaulting to 0
     radio_parms->modulation    = (radio_modulation_t) arguments->modulation;
     radio_parms->fec           = arguments->fec;
-    //radio_int_data.packet_length = arguments->packet_length;
 
-    if (arguments->variable_length)
-    {
-        radio_parms->packet_config = PKTLEN_VARIABLE;  // Use variable packet length
-        radio_int_data.packet_config = PKTLEN_VARIABLE;
-    }
-    else
-    {
-        radio_parms->packet_config = PKTLEN_FIXED;     // Use fixed packet length
-        radio_int_data.packet_config = PKTLEN_FIXED;
-    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -561,7 +578,6 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
         verbprintf(1, "CC1101 chip has been reset.\n");        
     }
 
-    radio_parms->packet_length = arguments->packet_length;  // Packet length
     get_rate_words(arguments, radio_parms);
 
     // Write register settings
@@ -577,15 +593,15 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // end of the packet. In RX, the pin will de-assert when the optional address
     // check fails or the RX FIFO overflows. In TX the pin will de-assert if the TX
     // FIFO underflows:    
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG0,   0x06); // GDO0 output pin config.
-
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG0,   0x06); // GDO0 output pin config.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG0,   CC1101_DEFVAL_IOCFG0);
     // FIFO_THR = 14: 
     // o 5 bytes in TX FIFO (55 available spaces)
     // o 60 bytes in the RX FIFO
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FIFOTHR,  0x0E); // FIFO threshold.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FIFOTHR,  CC1101_DEFVAL_FIFOTHR); // FIFO threshold.
 
     // PKTLEN: packet length up to 255 bytes. 
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTLEN, radio_parms->packet_length); // Packet length.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTLEN, CC1101_DEFVAL_PKTLEN); // Packet length.
 
     // PKTCTRL0: Packet automation control #0
     // . bit  7:   unused
@@ -594,8 +610,11 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // . bit  3:   unused
     // . bit  2:   1  -> CRC enabled
     // . bits 1:0: xx -> Packet length mode. Taken from radio config.
-    reg_word = (arguments->whitening<<6) + 0x04 + (int) radio_parms->packet_config;
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, reg_word); // Packet automation control.
+    
+    //reg_word = (arguments->whitening<<6) + 0x04 + (int) radio_parms->packet_config;
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, reg_word); // Packet automation control.
+
+    //nutiu -  PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL0, reg_word); // Packet automation control.
 
     // PKTCTRL1: Packet automation control #1
     // . bits 7:5: 000 -> Preamble quality estimator threshold
@@ -603,20 +622,23 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // . bit  3:   0   -> Automatic flush of Rx FIFO disabled (too many side constraints see doc)
     // . bit  2:   1   -> Append two status bytes to the payload (RSSI and LQI + CRC OK)
     // . bits 1:0: 00  -> No address check of received packets
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL1, 0x04); // Packet automation control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_PKTCTRL1, CC1101_DEFVAL_PKTCTRL1); // Packet automation control.
 
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration (unused, see just above).
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_CHANNR,   0x00); // Channel number (unused, use direct frequency programming).
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration 
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_CHANNR,   CC1101_DEFVAL_CHANNR); // Channel number (can change via direct frequency programming)
 
     // FSCTRL0: Frequency offset added to the base frequency before being used by the
     // frequency synthesizer. (2s-complement). Multiplied by Fxtal/2^14
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL0,  0x00); // Freq synthesizer control.
-
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL0,  CC1101_DEFVAL_FSCTRL0); // Freq synthesizer control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, CC1101_DEFVAL_FSCTRL1);
     // FSCTRL1: The desired IF frequency to employ in RX. Subtracted from FS base frequency
     // in RX and controls the digital complex mixer in the demodulator. Multiplied by Fxtal/2^10
     // Here 0.3046875 MHz (lowest point below 310 kHz)
-    radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);    
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
+    
+    //radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);    
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
+
+
 
     // FREQ2..0: Base frequency for the frequency sythesizer
     // Fo = (Fxosc / 2^16) * FREQ[23..0]
@@ -624,10 +646,14 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // FREQ1 is FREQ[15..8]
     // FREQ0 is FREQ[7..0]
     // Fxtal = 26 MHz and FREQ = 0x10A762 => Fo = 432.99981689453125 MHz
-    radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
+    //radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
+
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ2, CC1101_DEFVAL_FREQ2_433);
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ1, CC1101_DEFVAL_FREQ1_433);
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREQ0, CC1101_DEFVAL_FREQ0_433);
 
     // MODCFG4 Modem configuration - bandwidth and data rate exponent
     // High nibble: Sets the decimation ratio for the delta-sigma ADC input stream hence the channel bandwidth
@@ -637,35 +663,39 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //      Factory defaults: M=0, E=1 => BW = 26/128 ~ 203 kHz
     // Low nibble:
     // . bits 3:0: 13 -> DRATE_E: data rate base 2 exponent => here 13 (multiply by 8192)
-    reg_word = (radio_parms->chanbw_e<<6) + (radio_parms->chanbw_m<<4) + radio_parms->drate_e;
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
+    //reg_word = (radio_parms->chanbw_e<<6) + (radio_parms->chanbw_m<<4) + radio_parms->drate_e;
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG4,  CC1101_DEFVAL_MDMCFG4); // Modem configuration.
 
     // MODCFG3 Modem configuration: DRATE_M data rate mantissa as per formula:
     //    Rate = (256 + DRATE_M).2^DRATE_E.Fxosc / 2^28 
     // Here DRATE_M = 59, DRATE_E = 13 => Rate = 250 kBaud
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG3,  radio_parms->drate_m); // Modem configuration.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG3,  radio_parms->drate_m); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG3,  CC1101_DEFVAL_MDMCFG3); // Modem configuration.
 
     // MODCFG2 Modem configuration: DC block, modulation, Manchester, sync word
     // o bit 7:    0   -> Enable DC blocking (1: disable)
     // o bits 6:4: xxx -> (provided)
     // o bit 3:    0   -> Manchester disabled (1: enable)
     // o bits 2:0: 011 -> Sync word qualifier is 30/32 (static init in radio interface)
-    reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  reg_word); // Modem configuration.
+    //reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  reg_word); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  CC1101_DEFVAL_MDMCFG2); // Modem configuration.
 
     // MODCFG1 Modem configuration: FEC, Preamble, exponent for channel spacing
     // o bit 7:    0   -> FEC disabled (1: enable)
     // o bits 6:4: 2   -> number of preamble bytes (0:2, 1:3, 2:4, 3:6, 4:8, 5:12, 6:16, 7:24)
     // o bits 3:2: unused
     // o bits 1:0: CHANSPC_E: exponent of channel spacing (here: 2)
-    reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  reg_word); // Modem configuration.
+    //reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  reg_word); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  CC1101_DEFVAL_MDMCFG1); // Modem configuration.
 
     // MODCFG0 Modem configuration: CHANSPC_M: mantissa of channel spacing following this formula:
     //    Df = (Fxosc / 2^18) * (256 + CHANSPC_M) * 2^CHANSPC_E
     //    Here: (26 /  ) * 2016 = 0.199951171875 MHz (200 kHz)
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG0,  radio_parms->chanspc_m); // Modem configuration.
-
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG0,  radio_parms->chanspc_m); // Modem configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG0,  CC1101_DEFVAL_MDMCFG0); // Modem configuration.
     // DEVIATN: Modem deviation
     // o bit 7:    0   -> not used
     // o bits 6:4: 0   -> DEVIATION_E: deviation exponent
@@ -682,11 +712,13 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //
     //   OOK      : No effect
     //    
-    reg_word = (radio_parms->deviat_e<<4) + (radio_parms->deviat_m);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_DEVIATN,  reg_word); // Modem dev (when FSK mod en)
+    //reg_word = (radio_parms->deviat_e<<4) + (radio_parms->deviat_m);
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_DEVIATN,  reg_word); // Modem dev (when FSK mod en)
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_DEVIATN,  CC1101_DEFVAL_DEVIATN); // Modem configuration.
 
     // MCSM2: Main Radio State Machine. See documentation.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM2 ,   0x00); //MainRadio Cntrl State Machine
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM2 ,   0x00); //MainRadio Cntrl State Machine
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM2 ,   CC1101_DEFVAL_MCSM2); //MainRadio Cntrl State Machine
 
     // MCSM1: Main Radio State Machine. 
     // o bits 7:6: not used
@@ -705,7 +737,8 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01): FSTXON
     //   2 (10): TX (stay)
     //   3 (11): RX 
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM1 ,   0x3C); //MainRadio Cntrl State Machine
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM1 ,   0x3C); //MainRadio Cntrl State Machine
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM1 ,   CC1101_DEFVAL_MCSM1); //MainRadio Cntrl State Machine
 
     // MCSM0: Main Radio State Machine.
     // o bits 7:6: not used
@@ -722,7 +755,8 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   3 (11): 256: Approx. 597 – 620 μs
     // o bit 1: PIN_CTRL_EN:   Enables the pin radio control option
     // o bit 0: XOSC_FORCE_ON: Force the XOSC to stay on in the SLEEP state.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM0 ,   0x18); //MainRadio Cntrl State Machine
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM0 ,   0x18); //MainRadio Cntrl State Machine
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MCSM0,   CC1101_DEFVAL_MCSM0); //MainRadio Cntrl State Machine
 
     // FOCCFG: Frequency Offset Compensation Configuration.
     // o bits 7:6: not used
@@ -741,7 +775,8 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01): ±BW CHAN /8
     //   2 (10): ±BW CHAN /4
     //   3 (11): ±BW CHAN /2
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG,   0x1D); // Freq Offset Compens. Config
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG,   0x1D); // Freq Offset Compens. Config
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FOCCFG ,   CC1101_DEFVAL_FOCCFG); //MainRadio Cntrl State Machine
 
     // BSCFG:Bit Synchronization Configuration
     // o bits 7:6: BS_PRE_KI: Clock recovery loop integral gain before sync word
@@ -765,7 +800,8 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01): ±3.125 % data rate offset
     //   2 (10): ±6.25 % data rate offset
     //   3 (11): ±12.5 % data rate offset
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_BSCFG,    0x1C); //  Bit synchronization config.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_BSCFG,    0x1C); //  Bit synchronization config.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_BSCFG,    CC1101_DEFVAL_BSCFG); //  Bit synchronization config.
 
     // AGCCTRL2: AGC Control
     // o bits 7:6: MAX_DVGA_GAIN. Allowable DVGA settings
@@ -791,7 +827,9 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   5 (101): 38 dB
     //   6 (110): 40 dB
     //   7 (111): 42 dB
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL2, 0xC7); // AGC control.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL2, 0xC7); // AGC control.
+    //nutiu TODO: check different settions for best range
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL2, CC1101_DEFVAL_AGCCTRL2); // AGC control.
 
     // AGCCTRL1: AGC Control
     // o bit 7: not used
@@ -806,7 +844,8 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bits 3:0: CARRIER_SENSE_ABS_THR: Sets the absolute RSSI threshold for asserting carrier sense. 
     //   The 2-complement signed threshold is programmed in steps of 1 dB and is relative to the MAGN_TARGET setting.
     //   0 is at MAGN_TARGET setting.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL1, 0x00); // AGC control.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL1, 0x00); // AGC control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL1, CC1101_DEFVAL_AGCCTRL1); // AGC control.
 
     // AGCCTRL0: AGC Control
     // o bits 7:6: HYST_LEVEL: Sets the level of hysteresis on the magnitude deviation
@@ -833,14 +872,16 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   1 (01):       16: 8 dB
     //   2 (10):       32: 12 dB
     //   3 (11):       64: 16 dB  
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL0, 0xB2); // AGC control.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL0, 0xB2); // AGC control.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_AGCCTRL0, CC1101_DEFVAL_AGCCTRL0); // AGC control.
 
     // FREND1: Front End RX Configuration
     // o bits 7:6: LNA_CURRENT: Adjusts front-end LNA PTAT current output
     // o bits 5:4: LNA2MIX_CURRENT: Adjusts front-end PTAT outputs
     // o bits 3:2: LODIV_BUF_CURRENT_RX: Adjusts current in RX LO buffer (LO input to mixer)
     // o bits 1:0: MIX_CURRENT: Adjusts current in mixer
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND1,   0xB6); // Front end RX configuration.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND1,   0xB6); // Front end RX configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND1,   CC1101_DEFVAL_FREND1); // Front end RX configuration.
 
     // FREND0: Front End TX Configuration
     // o bits 7:6: not used
@@ -852,29 +893,36 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     //   index to use when transmitting a ‘1’. PATABLE index zero is used in OOK/ASK when transmitting a ‘0’. 
     //   The PATABLE settings from index ‘0’ to the PA_POWER value are used for ASK TX shaping, 
     //   and for power ramp-up/ramp-down at the start/end of transmission in all TX modulation formats.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND0,   0x10); // Front end RX configuration.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND0,   0x10); // Front end RX configuration.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FREND0,   CC1101_DEFVAL_FREND0); // Front end RX configuration.
 
     // FSCAL3: Frequency Synthesizer Calibration
     // o bits 7:6: The value to write in this field before calibration is given by the SmartRF
     //   Studio software.
     // o bits 5:4: CHP_CURR_CAL_EN: Disable charge pump calibration stage when 0.
     // o bits 3:0: FSCAL3: Frequency synthesizer calibration result register.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL3,   0xEA); // Frequency synthesizer cal.
-
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL3,   0xEA); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL3, CC1101_DEFVAL_FSCAL3);
     // FSCAL2: Frequency Synthesizer Calibration
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL2,   0x0A); // Frequency synthesizer cal.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL1,   0x00); // Frequency synthesizer cal.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL0,   0x11); // Frequency synthesizer cal.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSTEST,   0x59); // Frequency synthesizer cal.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL2,   0x0A); // Frequency synthesizer cal.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL1,   0x00); // Frequency synthesizer cal.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL0,   0x11); // Frequency synthesizer cal.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSTEST,   0x59); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL2,   CC1101_DEFVAL_FSCAL2); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL1,   CC1101_DEFVAL_FSCAL1); // Frequency synthesizer cal.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_FSCAL0,   CC1101_DEFVAL_FSCAL0); // Frequency synthesizer cal.
+
 
     // TEST2: Various test settings. The value to write in this field is given by the SmartRF Studio software.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST2,    0x88); // Various test settings.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST2,    0x88); // Various test settings.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST2,    CC1101_DEFVAL_TEST2); // Various test settings.
 
     // TEST1: Various test settings. The value to write in this field is given by the SmartRF Studio software.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST1,    0x31); // Various test settings.
-
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST1,    0x31); // Various test settings.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST1,    CC1101_DEFVAL_TEST1); // Various test settings.
     // TEST0: Various test settings. The value to write in this field is given by the SmartRF Studio software.
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST0,    0x09); // Various test settings.
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST0,    0x09); // Various test settings.
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TEST0,    CC1101_DEFVAL_TEST0); // Various test settings.
 
     if (arguments->verbose_level > 0)
     {
@@ -1032,21 +1080,22 @@ void radio_wait_free()
 
 // ------------------------------------------------------------------------------------------------
 // Initialize for Rx mode
-void radio_init_rx(spi_parms_t *spi_parms, arguments_t *arguments)
+void radio_init_rx(spi_parms_t *spi_parms)
 // ------------------------------------------------------------------------------------------------
 {
     blocks_received = radio_int_data.packet_rx_count;
     radio_int_data.mode = RADIOMODE_RX;
     radio_int_data.packet_receive = 0;    
     radio_int_data.threshold_hits = 0;
-    radio_set_packet_length(spi_parms, arguments->packet_length);
+    //radio_set_packet_length(spi_parms, arguments->packet_length);
     
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config RX mode
+    //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config RX mode
+    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
 // ------------------------------------------------------------------------------------------------
 // Receive of a block
-uint8_t radio_receive_block(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *block, uint32_t *size, uint8_t *crc)
+uint8_t radio_receive_block(arguments_t *arguments, uint8_t *block, uint32_t *size, uint8_t *crc)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t block_countdown, block_size;
@@ -1054,14 +1103,7 @@ uint8_t radio_receive_block(spi_parms_t *spi_parms, arguments_t *arguments, uint
     block_size = radio_int_data.rx_buf[0] - 1; // remove block countdown byte
     block_countdown = radio_int_data.rx_buf[1];
 
-    if (arguments->variable_length)
-    {
-        *crc = (radio_int_data.rx_buf[radio_int_data.rx_count - 1] & 0x80)>>7;
-    }
-    else
-    {
-        *crc = (radio_int_data.rx_buf[arguments->packet_length + 1] & 0x80)>>7;
-    }
+    *crc = (radio_int_data.rx_buf[radio_int_data.rx_count - 1] & 0x80)>>7;
 
     memcpy(block, (uint8_t *) &radio_int_data.rx_buf[2], block_size);
     *size += block_size;
@@ -1072,14 +1114,11 @@ uint8_t radio_receive_block(spi_parms_t *spi_parms, arguments_t *arguments, uint
     return block_countdown; // block countdown
 }
 
-// ------------------------------------------------------------------------------------------------
-// Receive of a packet
+/*
 uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet)
-// ------------------------------------------------------------------------------------------------
 {
     uint8_t  crc, block_countdown, block_count = 0;
     uint32_t packet_size = 0;
-    uint32_t timeout, timeout_value = (arguments->packet_length < 32 ? 16 : arguments->packet_length / 2); // timeout value in bocks of 4 2-FSK bytes
 
     if (blocks_received == radio_int_data.packet_rx_count) // no block received
     {
@@ -1089,7 +1128,7 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
     {
         do
         {
-            block_countdown = radio_receive_block(spi_parms, arguments, &packet[packet_size], &packet_size, &crc);
+            block_countdown = radio_receive_block(arguments, &packet[packet_size], &packet_size, &crc);
             radio_init_rx(spi_parms, arguments); // init for new block to receive Rx
 
             if (!block_count)
@@ -1111,21 +1150,6 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
                 return 0;
             }
 
-            timeout = timeout_value;
-
-            // Wait for the next block to be received if any is expected
-            while((block_countdown > 0) && (blocks_received == radio_int_data.packet_rx_count) && (timeout))
-            {
-                radio_wait_a_bit(4);
-                timeout--;
-            }
-
-            if (!timeout)
-            {
-                verbprintf(1, "RADIO: timeout waiting for the next block, aborting packet\n");
-                return 0;
-            }
-
         } while (block_countdown > 0);
 
         packets_received++;
@@ -1133,6 +1157,7 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
         return packet_size;
     }
 }
+*/
 
 // ------------------------------------------------------------------------------------------------
 // Transmission of a block
@@ -1152,10 +1177,15 @@ void radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown)
 
     // Initial number of bytes to put in FIFO is either the number of bytes to send or the FIFO size whichever is
     // the smallest. Actual size blocks you need to take size minus one byte.
+    //nutiu
+    if (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1){
+        verbprintf(1, "Tx: packet too big\n");
+        reuturn false;
+    }
     initial_tx_count = (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1 ? PI_CCxxx0_FIFO_SIZE-1 : radio_int_data.tx_count);
 
     // Initial fill of TX FIFO
-    PI_CC_SPIWriteBurstReg(spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) radio_int_data.tx_buf, initial_tx_count);
+    PI_CC_SPIWriteBurstReg(spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) radio_int_data.tx_buf, radio_int_data.tx_count);
     radio_int_data.byte_index = initial_tx_count;
     radio_int_data.bytes_remaining = radio_int_data.tx_count - initial_tx_count;
     blocks_sent = radio_int_data.packet_tx_count;
@@ -1174,8 +1204,7 @@ void radio_send_block(spi_parms_t *spi_parms, uint8_t block_countdown)
     verbprintf(2,"Tx: packet length %d, FIFO threshold was hit %d times\n", radio_int_data.tx_count, radio_int_data.threshold_hits);
 }
 
-// ------------------------------------------------------------------------------------------------
-// Transmission of a packet
+/*
 void radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size)
 // ------------------------------------------------------------------------------------------------
 {
@@ -1213,3 +1242,4 @@ void radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *
 
     packets_sent++;
 }
+*/

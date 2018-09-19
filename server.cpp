@@ -11,6 +11,8 @@
 #include <sys/time.h>
 
 #include "server.h"
+#include "lib/spaxstack/swpacket.h"
+
 #include "radio.h"
 #include "util.h"
 
@@ -48,23 +50,18 @@ uint8_t server_command(uint8_t *block)
         case 3: // Slot time
             //kiss_slot_time = command_arg * 10000; // these are tenths of ms
             break;
-        case 15:
-            verbprintf(1, "KISS: received aborting command\n");
-            abort();
-            break;
         default:
             break;
     }
-
-    verbprintf(1, "KISS: command received for port %d: (%d,%d)\n", kiss_port, command_code, command_arg);
     return 1;
 }
 
 // ------------------------------------------------------------------------------------------------
-// Run the KISS virtual TNC
+// Run the server 
 void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
+   
    if (commstack.cc1101.receiveData(&ccPacket) > 0)
     {
       if (ccPacket.crc_ok)
@@ -164,7 +161,7 @@ void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arg
     tx_count = 0;
     radio_init_rx(spi_parms, arguments); // init for new packet to receive Rx
     radio_turn_rx(spi_parms);            // Turn Rx on
-
+    /*
     while(1)
     {    
         byte_count = radio_receive_packet(spi_parms, arguments, &rx_buffer[rx_count]); // check if anything was received on radio link
@@ -245,5 +242,6 @@ void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arg
         }
 
         radio_wait_a_bit(4);
+        */
     }
 }
