@@ -59,7 +59,7 @@
 
 
 #include "pi_cc_spi.h"
-#include "pi_cc_cc1100-cc2500.h"
+#include "pi_cc_cc1101.h"
 
 //------------------------------------------------------------------------------
 //  void TI_CC_SPISetup(void)
