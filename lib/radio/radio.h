@@ -34,12 +34,6 @@ typedef enum sync_word_e
     SYNC_30_over_32_CARRIER   // 30/32 + carrier-sense above threshold
 } sync_word_t;
 
-typedef enum packet_config_e 
-{
-    PKTLEN_FIXED = 0,
-    PKTLEN_VARIABLE,
-    PKTLEN_INFINITE
-} packet_config_t;
 
 typedef enum radio_modulation_e {
     RADIO_MOD_OOK,
@@ -54,8 +48,6 @@ typedef struct radio_parms_s
 {
     uint32_t           f_xtal;        // Crystal frequency (Hz)
     uint32_t           f_if;          // IF frequency (Hz)
-    packet_config_t    packet_config; // Packet length configuration
-    uint8_t            packet_length; // Packet length if fixed
     radio_modulation_t modulation;    // Type of modulation
     uint8_t            fec;           // FEC is in use
     sync_word_t        sync_ctl;      // Sync word control
@@ -93,8 +85,6 @@ typedef volatile struct radio_int_data_s
 {
     spi_parms_t  *spi_parms;             // SPI link parameters
     radio_mode_t mode;                   // Radio mode (essentially Rx or Tx)
-    packet_config_t packet_config;       // Packet length configuration
-    uint8_t      packet_length;          // Fixed legth of packet or maximum length if variable
     uint32_t     packet_rx_count;        // Number of packets received since put into action
     uint32_t     packet_tx_count;        // Number of packets sent since put into action
     CCPACKET     tx_buf[BUFF_SIZE]; // Tx buffer
@@ -109,7 +99,7 @@ typedef volatile struct radio_int_data_s
     uint8_t      threshold_hits;         // Number of times the FIFO threshold is hit during packet processing
 } radio_int_data_t;
 
-extern char     *state_names[];
+extern const char     *state_names[];
 extern float    chanbw_limits[];
 extern uint32_t packets_sent;
 extern uint32_t packets_received;

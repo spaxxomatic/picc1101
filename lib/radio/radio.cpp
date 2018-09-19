@@ -1004,8 +1004,6 @@ void print_radio_parms(radio_parms_t *radio_parms)
         radio_get_rate(radio_parms), radio_parms->drate_m, radio_parms->drate_e);
     fprintf(stderr, "Deviation ..............: %.3f kHz (M=%d, E=%d)\n",
         ((radio_parms->f_xtal/1e3) / (1<<17)) * (8 + radio_parms->deviat_m) * (1<<radio_parms->deviat_e), radio_parms->deviat_m, radio_parms->deviat_e);
-    fprintf(stderr, "Packet length ..........: %d bytes\n",
-        radio_parms->packet_length);
     fprintf(stderr, "Packet time ............: %d us\n",
         (uint32_t) (radio_parms->packet_length * radio_get_byte_time(radio_parms)));
     fprintf(stderr, "Byte time ..............: %d us\n",
