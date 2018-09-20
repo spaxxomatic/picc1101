@@ -79,6 +79,12 @@ typedef enum radio_mode_e
     RADIOMODE_TX
 } radio_mode_t;
 
+typedef enum radio_errors_e {
+    RADIOERR_PACKET_TOO_LONG = 1,
+    RADIOERR_PACKET_CRC_ERR = 1
+
+} radio_errors_t;
+
 #define BUFF_SIZE 32
 
 typedef volatile struct radio_int_data_s 
@@ -93,10 +99,11 @@ typedef volatile struct radio_int_data_s
     uint8_t      rx_count;               // Number of bytes in Rx buffer
     uint8_t      bytes_remaining;        // Bytes remaining to be read from or written to buffer (composite mode)
     uint8_t      byte_index;             // Current byte index in buffer
-    uint8_t      packet_receive;         // Indicates reception of a packet is in progress
+    //uint8_t      packet_receive;         // Indicates reception of a packet is in progress
     uint8_t      packet_send;            // Indicates transmission of a packet is in progress
     uint32_t     wait_us;                // Unit wait time of approximately 4 2-FSK symbols
     uint8_t      threshold_hits;         // Number of times the FIFO threshold is hit during packet processing
+    uint8_t        last_error;
 } radio_int_data_t;
 
 extern const char     *state_names[];

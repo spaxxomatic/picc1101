@@ -140,7 +140,57 @@ byte receiveData(CCPACKET * packet)
   return packet->length;
 }
 */
-void irq_handle_packet(void)
+void irq_handle_packet(void){
+    byte rxBytes;
+    byte rxDataLength;
+    if (p_radio_int_data->mode == RADIOMODE_RX){
+        verbprintf(3, "GDO0 Rx irq\n");
+        static CCPACKET packet;
+        static SWPACKET swPacket;
+        PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count); //contains the number of bytes in the rx fifo
+        // Any byte waiting to be read and no overflow?
+        if (rxBytes & 0x7F && !(rxBytes & 0x80)){ //is there data to be read and no overflow?
+            // Read data length
+            PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the 
+            if (rxDataLength > CC1101_DATA_LEN){
+                p_radio_int_data->last_error = RADIOERR_PACKET_TOO_LONG;
+                return;
+            }else{
+                // Read data packet
+                //readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
+                //read the net data
+                packet.length = rxDataLength;
+                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, packet.data, packet.length);
+                // Read RSSI
+                packet.rssi = readConfigReg(CC1101_RXFIFO);
+                // Read LQI and CRC_OK
+                val = readConfigReg(CC1101_RXFIFO);
+                packet.lqi = val & 0x7F;
+                packet.crc_ok = bitRead(val, 7);
+                if (! packet.crc_ok){
+                   p_radio_int_data->last_error = RADIOERR_PACKET_TOO_LONG; 
+                }else{ //copy the data to the buff
+
+                }
+                
+            }   
+            //###########     
+            if (p_radio_int_data->mode == RADIOMODE_RX){
+                verbprintf(3, "GDO0 Rx irq\n");
+                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &p_byte, p_radio_int_data->bytes_remaining);
+                memcpy((uint8_t *) &(p_radio_int_data->rx_buf[p_radio_int_data->byte_index]), p_byte, p_radio_int_data->bytes_remaining);
+                p_radio_int_data->byte_index += p_radio_int_data->bytes_remaining;
+                p_radio_int_data->bytes_remaining = 0;
+                radio_int_data.mode = RADIOMODE_NONE;
+                p_radio_int_data->packet_rx_count++;     
+            }
+        }   
+    }
+}
+
+//nutiu remove
+/*
+void irq_handle_packet_old(void)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t x_byte, *p_byte, int_line, rssi_dec, crc_lqi;
@@ -220,61 +270,7 @@ void irq_handle_packet(void)
         }
     }
 }
-
-// ------------------------------------------------------------------------------------------------
-// Processes packets that do not fit in Rx or Tx FIFOs and 255 bytes long maximum
-// FIFO threshold interrupt handler 
-void int_threshold(void)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t i, int_line, bytes_to_send, x_byte, *p_byte;
-
-    int_line = digitalRead(WPI_GDO2); // Sense interrupt line to determine if it was a raising or falling edge
-
-    if ((p_radio_int_data->mode == RADIOMODE_RX) && (int_line)) // Filling of Rx FIFO - Read next 59 bytes
-    {
-        verbprintf(3, "GDO2 Rx rising edge (%d,%d): %d bytes remaining\n", 
-            p_radio_int_data->packet_receive, 
-            p_radio_int_data->packet_send, 
-            p_radio_int_data->bytes_remaining);
-
-        if (p_radio_int_data->packet_receive) // if reception has started
-        {
-            p_radio_int_data->threshold_hits++;
-
-            PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &p_byte, RX_FIFO_UNLOAD);
-            memcpy((uint8_t *) &(p_radio_int_data->rx_buf[p_radio_int_data->byte_index]), p_byte, RX_FIFO_UNLOAD);
-            p_radio_int_data->byte_index += RX_FIFO_UNLOAD;
-            p_radio_int_data->bytes_remaining -= RX_FIFO_UNLOAD;            
-        }
-    }
-    else if ((p_radio_int_data->mode == RADIOMODE_TX) && (!int_line)) // Depletion of Tx FIFO - Write at most next TX_FIFO_REFILL bytes
-    {
-        verbprintf(3, "GDO2 Tx falling edge (%d,%d): %d bytes remaining\n", 
-            p_radio_int_data->packet_receive, 
-            p_radio_int_data->packet_send, 
-            p_radio_int_data->bytes_remaining);
-
-        if ((p_radio_int_data->packet_send) && (p_radio_int_data->bytes_remaining > 0)) // bytes left to send
-        {
-            p_radio_int_data->threshold_hits++;
-
-            if (p_radio_int_data->bytes_remaining < TX_FIFO_REFILL)
-            {
-                bytes_to_send = p_radio_int_data->bytes_remaining;
-            }
-            else
-            {
-                bytes_to_send = TX_FIFO_REFILL;
-            }
-
-            PI_CC_SPIWriteBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) &(p_radio_int_data->tx_buf[p_radio_int_data->byte_index]), bytes_to_send);
-            p_radio_int_data->byte_index += bytes_to_send;
-            p_radio_int_data->bytes_remaining -= bytes_to_send;
-        }        
-    }
-}
-
+*/
 // === Static functions ===========================================================================
 
 // ------------------------------------------------------------------------------------------------
@@ -471,7 +467,8 @@ void init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments)
     radio_int_data.wait_us = 8000000 / rate_values[arguments->rate]; // approximately 2-FSK byte delay
     p_radio_int_data = &radio_int_data;
 
-    wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet);       // set interrupt handler for packet interrupts
+    //nutiu wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet);       // set interrupt handler for packet interrupts
+    wiringPiISR(WPI_GDO0, INT_EDGE_FALLING, &irq_handle_packet);       // set interrupt handler for packet interrupts
 
     /*if (arguments->packet_length >= PI_CCxxx0_FIFO_SIZE)
     {
@@ -587,6 +584,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o 0x02: Asserts when the TX FIFO is filled at or above the TX FIFO threshold.
     //         De-asserts when the TX FIFO is below the same threshold.
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x00); // GDO2 output pin config.
+    
 
     // IOCFG0 = 0x06: Asserts when sync word has been sent / received, and de-asserts at the
     // end of the packet. In RX, the pin will de-assert when the optional address
@@ -1069,10 +1067,13 @@ void radio_wait_a_bit(uint32_t amount)
 void radio_wait_free()
 // ------------------------------------------------------------------------------------------------
 {
+    /*nutiu fixme - packet_receive is not used any more. 
+    //we should check the gpio ? or do we need this wait_free at all ?
     while((radio_int_data.packet_receive) || (radio_int_data.packet_send))
     {
         radio_wait_a_bit(4);
     }
+    */
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1081,8 +1082,7 @@ void radio_init_rx(spi_parms_t *spi_parms)
 // ------------------------------------------------------------------------------------------------
 {
     blocks_received = radio_int_data.packet_rx_count;
-    radio_int_data.mode = RADIOMODE_RX;
-    radio_int_data.packet_receive = 0;    
+    radio_int_data.mode = RADIOMODE_RX;  
     radio_int_data.threshold_hits = 0;
     //radio_set_packet_length(spi_parms, arguments->packet_length);
     
