@@ -31,6 +31,7 @@
 #define CC1101_BUFFER_LEN        64
 #define CC1101_DATA_LEN          CC1101_BUFFER_LEN - 3
 
+
 /**
  * Class: CCPACKET
  * 
@@ -40,21 +41,23 @@
 class CCPACKET
 {
   public:
+    void copy(const CCPACKET &p2); 
+    char* getHumanReadableError();
+    /**
+     * ERROR flag
+     */
+    byte errorCode;
     /**
      * Data length
      */
     byte length;
 
     /**
-     * Data buffer
+     * Data buffer, 2 more bytes for RSSI and CRC, 
+     * see 15 Packet Handling Hardware Support in CC1101 datasheet
      */
-    byte data[CC1101_DATA_LEN];
-
-    /**
-     * CRC OK flag
-     */
-    bool crc_ok;
-
+    byte data[CC1101_DATA_LEN+2];
+  
     /**
      * Received Strength Signal Indication
      */
@@ -64,6 +67,7 @@ class CCPACKET
      * Link Quality Index
      */
     byte lqi;
+
 };
 
 #endif

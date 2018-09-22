@@ -141,40 +141,43 @@ byte receiveData(CCPACKET * packet)
 }
 */
 void irq_handle_packet(void){
+    // the irq handler will read data from the radio chip and transfer it to the p_radio_int_data->rx_buff beginning from the pos 1
+    // The pos 0 (first byte) in the buffer will contain the error code. 
+    // Errors will be stored inside the packet. If the packet is too long no data will be copied to the buff
+    
     byte rxBytes;
     byte rxDataLength;
+    static CCPACKET packet;
+    packet.errorCode = 0;
     if (p_radio_int_data->mode == RADIOMODE_RX){
         verbprintf(3, "GDO0 Rx irq\n");
-        static CCPACKET packet;
-        static SWPACKET swPacket;
         PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count); //contains the number of bytes in the rx fifo
         // Any byte waiting to be read and no overflow?
         if (rxBytes & 0x7F && !(rxBytes & 0x80)){ //is there data to be read and no overflow?
             // Read data length
             PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the 
             if (rxDataLength > CC1101_DATA_LEN){
-                p_radio_int_data->last_error = RADIOERR_PACKET_TOO_LONG;
-                return;
+                packet.errorCode = RADIOERR_PACKET_TOO_LONG;
             }else{
                 // Read data packet
                 //readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
                 //read the net data
                 packet.length = rxDataLength;
-                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, packet.data, packet.length);
+                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, packet.data, packet.length+2);
+                //the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is 
                 // Read RSSI
-                packet.rssi = readConfigReg(CC1101_RXFIFO);
+                //packet.rssi = readConfigReg(CC1101_RXFIFO);
                 // Read LQI and CRC_OK
-                val = readConfigReg(CC1101_RXFIFO);
-                packet.lqi = val & 0x7F;
-                packet.crc_ok = bitRead(val, 7);
-                if (! packet.crc_ok){
-                   p_radio_int_data->last_error = RADIOERR_PACKET_TOO_LONG; 
-                }else{ //copy the data to the buff
-
+                //val = readConfigReg(CC1101_RXFIFO);
+                packet.rssi = packet.data[rxDataLength]; //first byte after data 
+                packet.lqi = packet.data[rxDataLength+2] & 0x7F;
+                crc_ok = bitRead(packet.data[rxDataLength+2], 7);
+                if (! crc_ok){
+                    packet.errorCode = RADIOERR_PACKET_CRC_ERR; 
                 }
-                
             }   
             //###########     
+            /*
             if (p_radio_int_data->mode == RADIOMODE_RX){
                 verbprintf(3, "GDO0 Rx irq\n");
                 PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &p_byte, p_radio_int_data->bytes_remaining);
@@ -184,7 +187,19 @@ void irq_handle_packet(void){
                 radio_int_data.mode = RADIOMODE_NONE;
                 p_radio_int_data->packet_rx_count++;     
             }
+            */
         }   
+        p_radio_int_data->rx_buf[p_radio_int_data->rx_buff_idx][0] = packet.errorCode; 
+        //copy the rest only if there are no errors
+        if (packet.errorCode == 0){
+            //memcpy((uint8_t *) &(p_radio_int_data->rx_buf[p_radio_int_data->rx_buff_idx]), packet.data, packet.length+2);
+            p_radio_int_data.rx_buf[p_radio_int_data->rx_buff_idx].copy(&packet);
+        }
+        //increment the buff counter
+        if (p_radio_int_data->rx_buff_idx >= BUFF_SIZE)
+            p_radio_int_data->rx_buff_idx = 0; //circular buffer
+        else
+            p_radio_int_data->rx_buff_idx += 1;
     }
 }
 
@@ -459,8 +474,8 @@ void init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     radio_int_data.mode = RADIOMODE_NONE;
-    radio_int_data.packet_rx_count = 0;
-    radio_int_data.packet_tx_count = 0;
+    radio_int_data.rx_buff_idx = 0;
+    radio_int_data.tx_buff_idx = 0;
     packets_sent = 0;
     packets_received = 0;
     radio_int_data.spi_parms = spi_parms;

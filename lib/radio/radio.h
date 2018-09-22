@@ -72,19 +72,33 @@ typedef enum radio_int_scheme_e
     NUM_RADIOINT
 } radio_int_scheme_t;
 
+
+typedef enum radio_errors_e {
+    RADIO_PACKET_OK = 0,
+    RADIOERR_PACKET_TOO_LONG ,
+    RADIOERR_PACKET_CRC_ERR
+} radio_errors_t;
+
+typedef struct
+{
+	uint8_t code; 	
+    char* description;  
+} CODE_TO_DESCR;	
+
+CODE_TO_DESCR ERR_DESCRIPTIONS[] = 
+{
+    {RADIO_PACKET_OK, "Packet OK"}, 
+    {RADIOERR_PACKET_TOO_LONG, "Packet too long"}, 
+    {RADIOERR_PACKET_CRC_ERR, "CRC ERR"}
+};
+
 typedef enum radio_mode_e
 {
     RADIOMODE_NONE = 0,
     RADIOMODE_RX,
     RADIOMODE_TX
 } radio_mode_t;
-
-typedef enum radio_errors_e {
-    RADIOERR_PACKET_TOO_LONG = 1,
-    RADIOERR_PACKET_CRC_ERR = 1
-
-} radio_errors_t;
-
+ 
 #define BUFF_SIZE 32
 
 typedef volatile struct radio_int_data_s 
@@ -97,8 +111,8 @@ typedef volatile struct radio_int_data_s
     uint8_t      tx_count;               // Number of bytes in Tx buffer
     CCPACKET     rx_buf[BUFF_SIZE]; // Rx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
-    uint8_t      bytes_remaining;        // Bytes remaining to be read from or written to buffer (composite mode)
-    uint8_t      byte_index;             // Current byte index in buffer
+    uint8_t      tx_buff_idx;        // Bytes remaining to be read from or written to buffer (composite mode)
+    uint8_t      rx_buff_idx;             // Current byte index in buffer
     //uint8_t      packet_receive;         // Indicates reception of a packet is in progress
     uint8_t      packet_send;            // Indicates transmission of a packet is in progress
     uint32_t     wait_us;                // Unit wait time of approximately 4 2-FSK symbols
