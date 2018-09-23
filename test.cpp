@@ -58,7 +58,8 @@ int radio_receive_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
         do
         {
             radio_wait_free(); // make sure no radio operation is in progress
-            nb_rx = radio_receive_block(rx_bytes, &size, &crc);
+            //nutiu fixme do we need this test function ?
+            //nb_rx = radio_receive_block(rx_bytes, &size, &crc);
         } while(nb_rx == 0);
 
         rx_bytes[nb_rx] = '\0';

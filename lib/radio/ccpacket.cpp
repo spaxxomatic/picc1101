@@ -15,4 +15,4 @@ void CCPACKET::copy(const CCPACKET &p2) { //copy constructor
 
 char* CCPACKET::getHumanReadableError() { //copy constructor
         return ERR_DESCRIPTIONS[errorCode];
-    } ;     
+    } ;  

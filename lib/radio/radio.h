@@ -105,27 +105,21 @@ typedef volatile struct radio_int_data_s
 {
     spi_parms_t  *spi_parms;             // SPI link parameters
     radio_mode_t mode;                   // Radio mode (essentially Rx or Tx)
-    uint32_t     packet_rx_count;        // Number of packets received since put into action
-    uint32_t     packet_tx_count;        // Number of packets sent since put into action
     CCPACKET     tx_buf[BUFF_SIZE]; // Tx buffer
     uint8_t      tx_count;               // Number of bytes in Tx buffer
     CCPACKET     rx_buf[BUFF_SIZE]; // Rx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
-    uint8_t      tx_buff_idx;        // Bytes remaining to be read from or written to buffer (composite mode)
-    uint8_t      rx_buff_idx;             // Current byte index in buffer
-    //uint8_t      packet_receive;         // Indicates reception of a packet is in progress
+    uint8_t      tx_buff_idx;        //Index of the last packet tramsitted in the tx buffer
+    uint8_t      tx_buff_idx_ins;        //Index of the last packet inserted in the tx buffer
+    uint8_t      rx_buff_idx;             // Index of the next packet to insert in buffer
+    uint8_t      rx_buff_read_idx;        // Read side - Index of the next packet to read from the buffer
     uint8_t      packet_send;            // Indicates transmission of a packet is in progress
     uint32_t     wait_us;                // Unit wait time of approximately 4 2-FSK symbols
-    uint8_t      threshold_hits;         // Number of times the FIFO threshold is hit during packet processing
-    uint8_t        last_error;
+    uint8_t      last_error;
 } radio_int_data_t;
 
 extern const char     *state_names[];
 extern float    chanbw_limits[];
-extern uint32_t packets_sent;
-extern uint32_t packets_received;
-extern uint32_t blocks_sent;
-extern uint32_t blocks_received;
 
 void     init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments);
 int      init_radio(radio_parms_t *radio_parms,  spi_parms_t *spi_parms, arguments_t *arguments);
@@ -146,7 +140,7 @@ float    radio_get_byte_time(radio_parms_t *radio_parms);
 void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
-static bool     radio_send_block(spi_parms_t *spi_parms);
+static bool     tx_handler(spi_parms_t *spi_parms);
 static uint8_t  radio_receive_block(uint8_t *block, uint32_t *size, uint8_t *crc);
 
 //void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);

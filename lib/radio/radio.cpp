@@ -78,10 +78,6 @@ float chanbw_limits[] = {
 
 static radio_int_data_t *p_radio_int_data = 0;
 static radio_int_data_t radio_int_data;
-uint32_t blocks_sent;
-uint32_t blocks_received;
-uint32_t packets_sent;
-uint32_t packets_received;
 
 // === Static functions declarations ==============================================================
 
@@ -151,7 +147,7 @@ void irq_handle_packet(void){
     packet.errorCode = 0;
     if (p_radio_int_data->mode == RADIOMODE_RX){
         verbprintf(3, "GDO0 Rx irq\n");
-        PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count); //contains the number of bytes in the rx fifo
+        PI_CC_SPIReadStatus(p_radio_int_data->spi_parms, PI_CCxxx0_RXBYTES, &rx_count); //contains the number of bytes in the rx fifo
         // Any byte waiting to be read and no overflow?
         if (rxBytes & 0x7F && !(rxBytes & 0x80)){ //is there data to be read and no overflow?
             // Read data length
@@ -442,16 +438,15 @@ void wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeo
 }
 
 // ------------------------------------------------------------------------------------------------
-void print_received_packet(int verbose_min)
+void print_received_packet(CCPACKET* packet)
 // Print a received packet stored in the interrupt data block
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t rssi_dec, crc_lqi;
     int i;
-
+    CCPACKET thisPa
     verbprintf(verbose_min, "Rx: packet length %d, FIFO was hit %d times\n", 
-        radio_int_data.length,
-        radio_int_data.threshold_hits);
+        radio_int_data.length);
     print_block(verbose_min+2, (uint8_t *) radio_int_data.rx_buf, radio_int_data.rx_count);
 
     rssi_dec = radio_int_data.rx_buf[radio_int_data.rx_count-2];
@@ -1096,33 +1091,13 @@ void radio_wait_free()
 void radio_init_rx(spi_parms_t *spi_parms)
 // ------------------------------------------------------------------------------------------------
 {
-    blocks_received = radio_int_data.packet_rx_count;
     radio_int_data.mode = RADIOMODE_RX;  
-    radio_int_data.threshold_hits = 0;
     //radio_set_packet_length(spi_parms, arguments->packet_length);
     
     //PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config RX mode
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
-// ------------------------------------------------------------------------------------------------
-// Receive of a block
-uint8_t radio_receive_block(uint8_t *block, uint32_t *size, uint8_t *crc)
-// ------------------------------------------------------------------------------------------------
-{    
-    *crc = radio_int_data.crc_ok;
-    //*crc = (radio_int_data.rx_buf[radio_int_data.rx_count - 1] & 0x80)>>7;
-
-    //memcpy(block, (uint8_t *) &radio_int_data.rx_buf[2], block_size);
-    memcpy(block, (uint8_t *) radio_int_data.data, radio_int_data.length);
-    
-    *size = radio_int_data.length;
-
-    verbprintf(1, "Rx: packet #%d >%d\n", radio_int_data.packet_rx_count, *size);
-    print_received_packet(2);
-
-    return radio_int_data->length;
-}
 
 /*
 uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet)
@@ -1171,48 +1146,73 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
 
 // ------------------------------------------------------------------------------------------------
 // Transmission of a block
-bool radio_send_block(spi_parms_t *spi_parms)
+bool tx_handler(spi_parms_t *spi_parms)
 // ------------------------------------------------------------------------------------------------
 {
-    uint8_t  initial_tx_count; // Number of bytes to send in first batch
-    int      i, ret;
+    int i, ret;
 
     radio_int_data.mode = RADIOMODE_TX;
     radio_int_data.packet_send = 0;
-    radio_int_data.threshold_hits = 0;
 
-    radio_set_packet_length(spi_parms, radio_int_data.tx_count);
+    //look if there is anthing to be sent in the tx buff
+    if (tx_buff_idx == tx_buff_idx_ins){ //nothing added to the buff, return
+        return true;
+    }els€{
+        CCPACKET *packet = radio_int_data.tx_buf[tx_buff_idx++];
+        //radio_set_packet_length(spi_parms, packet->length);
+        PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x02); // GDO2 output pin config TX mode
+        PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFTX); //flush the fifo buffer
+        // Set data length at the first position of the TX FIFO
+        writeReg(CC1101_TXFIFO,  packet->length);
+        // Write data into the TX FIFO
+        writeBurstReg(CC1101_TXFIFO, packet->data, packet->length);
+        PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
+        PI_CC_SPIWriteBurstReg(spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) packet->data, packet->length); //write the payload data
+        
+        PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_STX); // Kick-off Tx
 
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x02); // GDO2 output pin config TX mode
+  // Check that TX state is being entered (state = RXTX_SETTLING)
+  //nutiu todo: check transmission complete
+  marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
+  if((marcState != 0x13) && (marcState != 0x14) && (marcState != 0x15))
+  {
+    setIdleState();       // Enter IDLE state
+    flushTxFifo();        // Flush Tx FIFO
+    setRxState();         // Back to RX state
 
-    // Initial number of bytes to put in FIFO is either the number of bytes to send or the FIFO size whichever is
-    // the smallest. Actual size blocks you need to take size minus one byte.
-    //nutiu
-    if (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1){
-        verbprintf(1, "Tx: packet too big\n");
-        return false;
+    // Declare to be in Rx state
+    rfState = RFSTATE_RX;
+    return false;
+  }
+
+  // Wait for the sync word to be transmitted
+  wait_GDO0_high();
+
+  // Wait until the end of the packet transmission
+  wait_GDO0_low();
+
+  // Check that the TX FIFO is empty
+  if((readStatusReg(CC1101_TXBYTES) & 0x7F) == 0)
+    res = true;
+
+  setIdleState();       // Enter IDLE state
+  flushTxFifo();        // Flush Tx FIFO
+
+  // Enter back into RX state
+  setRxState();
+
+  // Declare to be in Rx state
+  rfState = RFSTATE_RX;
+
+        
+        //radio_wait_a_bit(4);
+
+        print_block(4, (uint8_t *) packet->data, packet->length);
+        
+        verbprintf(2,"Tx: sent %d bytes\n", packet->length);
+        
+        return true;
     }
-    initial_tx_count = (radio_int_data.tx_count > PI_CCxxx0_FIFO_SIZE-1 ? PI_CCxxx0_FIFO_SIZE-1 : radio_int_data.tx_count);
-
-    // Initial fill of TX FIFO
-    PI_CC_SPIWriteBurstReg(spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) radio_int_data.tx_buf, radio_int_data.tx_count);
-    radio_int_data.byte_index = initial_tx_count;
-    radio_int_data.bytes_remaining = radio_int_data.tx_count - initial_tx_count;
-    blocks_sent = radio_int_data.packet_tx_count;
-
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_STX); // Kick-off Tx
-
-    while (blocks_sent == radio_int_data.packet_tx_count)
-    {
-        radio_wait_a_bit(4);
-    }
-
-    verbprintf(1, "Tx: packet #%d\n", radio_int_data.packet_tx_count);
-    print_block(4, (uint8_t *) radio_int_data.tx_buf, radio_int_data.tx_count);
-
-    blocks_sent = radio_int_data.packet_tx_count;
-    verbprintf(2,"Tx: packet length %d, FIFO threshold was hit %d times\n", radio_int_data.tx_count, radio_int_data.threshold_hits);
-    return true;
 }
 
 /*
