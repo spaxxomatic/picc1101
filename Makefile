@@ -3,7 +3,7 @@ RM := rm
 
 EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4
 
-all: prepare rfreceiver 
+all: prepare spaxxserver 
 
 clean:
 	rm -rf out rfreceiver
@@ -11,8 +11,8 @@ clean:
 prepare:
 	$(MD) -p out
 
-rfreceiver: main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o register.o spaxstack.o
-	cd out; $(CCPREFIX)gcc $(LDFLAGS) -s -lm -lwiringPi -o out/rfreceiver main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o spaxstack.o
+spaxxserver: main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o register.o spaxstack.o
+	cd out; $(CCPREFIX)gcc $(LDFLAGS) -s -lm -lwiringPi -o out/spaxxserver main.o serial.o pi_cc_spi.o radio.o server.o util.o test.o spaxstack.o
 
 main.o: lib/radio/params.h main.cpp
 	$(CCPREFIX)gcc $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/main.o main.cpp

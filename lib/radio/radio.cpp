@@ -32,28 +32,28 @@ const char *state_names[] = {
     "REGON",            // 07
     "STARTCAL",         // 08
     "BWBOOST",          // 09
-    "FS_LOCK",          // 10
-    "IFADCON",          // 11
-    "ENDCAL",           // 12
-    "RX",               // 13
-    "RX_END",           // 14
-    "RX_RST",           // 15
-    "TXRX_SWITCH",      // 16
-    "RXFIFO_OVERFLOW",  // 17
-    "FSTXON",           // 18
-    "TX",               // 19
-    "TX_END",           // 20
-    "RXTX_SWITCH",      // 21
-    "TXFIFO_UNDERFLOW", // 22
-    "undefined",        // 23
-    "undefined",        // 24
-    "undefined",        // 25
-    "undefined",        // 26
-    "undefined",        // 27
-    "undefined",        // 28
-    "undefined",        // 29
-    "undefined",        // 30
-    "undefined"         // 31
+    "FS_LOCK",          // 10 0xA
+    "IFADCON",          // 11 0xB
+    "ENDCAL",           // 12 0xC
+    "RX",               // 13 0xD
+    "RX_END",           // 14 0xE
+    "RX_RST",           // 15 0xF
+    "TXRX_SWITCH",      // 16 0x10
+    "RXFIFO_OVERFLOW",  // 17 0x11
+    "FSTXON",           // 18 0x12
+    "TX",               // 19 0x13
+    "TX_END",           // 20 0x14
+    "RXTX_SWITCH",      // 21 0x15
+    "TXFIFO_UNDERFLOW", // 22 0x16
+    "undefined",        // 23 0x17
+    "undefined",        // 24 0x18
+    "undefined",        // 25 0x19
+    "undefined",        // 26 0x20
+    "undefined",        // 27 0x21
+    "undefined",        // 28 0x22
+    "undefined",        // 29 0x23
+    "undefined",        // 30 0x24
+    "undefined"         // 31 0x25
 };
 
 // 4x4 channel bandwidth limits
@@ -75,9 +75,6 @@ float chanbw_limits[] = {
     68000.0,
     58000.0
 };
-
-static radio_int_data_t *p_radio_int_data = 0;
-static radio_int_data_t radio_int_data;
 
 // === Static functions declarations ==============================================================
 
@@ -405,8 +402,34 @@ void get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms)
 }
 
 // ------------------------------------------------------------------------------------------------
+// Poll FSM state waiting for apost-TX  state transition until timeout (approx ms)
+bool wait_for_tx_end(spi_parms_t *spi_parms, uint32_t timeout)
+// ------------------------------------------------------------------------------------------------
+{
+    uint8_t fsm_state;
+
+    while(timeout)
+    {
+        PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_MARCSTATE, &fsm_state);
+        fsm_state &= 0x1F;
+        if((fsm_state != 0x13) && (fsm_state != 0x14) && (fsm_state != 0x15)) {
+            break;
+        }
+        usleep(1000);
+        timeout--;
+    }
+
+    if (!timeout)
+    {
+        verbprintf(1, "RADIO: timeout reached in state %s waiting for TX end\n", state_names[fsm_state]);
+        return false;
+    } 
+    return true;   
+}
+
+// ------------------------------------------------------------------------------------------------
 // Poll FSM state waiting for given state until timeout (approx ms)
-void wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeout)
+bool wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeout)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t fsm_state;
@@ -428,7 +451,7 @@ void wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeo
     if (!timeout)
     {
         verbprintf(1, "RADIO: timeout reached in state %s waiting for state %s\n", state_names[fsm_state], state_names[state]);
-        
+        return false;
         if (fsm_state == CCxxx0_STATE_RXFIFO_OVERFLOW)
         {
             PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFRX); // Flush Rx FIFO
@@ -1098,7 +1121,9 @@ void radio_init_rx(spi_parms_t *spi_parms)
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
+uint8_t radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc){
 
+};
 /*
 uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet)
 {
@@ -1157,7 +1182,7 @@ bool tx_handler(spi_parms_t *spi_parms)
     //look if there is anthing to be sent in the tx buff
     if (tx_buff_idx == tx_buff_idx_ins){ //nothing added to the buff, return
         return true;
-    }els€{
+    }else{
         CCPACKET *packet = radio_int_data.tx_buf[tx_buff_idx++];
         //radio_set_packet_length(spi_parms, packet->length);
         PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x02); // GDO2 output pin config TX mode
@@ -1171,40 +1196,38 @@ bool tx_handler(spi_parms_t *spi_parms)
         
         PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_STX); // Kick-off Tx
 
-  // Check that TX state is being entered (state = RXTX_SETTLING)
-  //nutiu todo: check transmission complete
-  marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
-  if((marcState != 0x13) && (marcState != 0x14) && (marcState != 0x15))
-  {
-    setIdleState();       // Enter IDLE state
-    flushTxFifo();        // Flush Tx FIFO
-    setRxState();         // Back to RX state
-
-    // Declare to be in Rx state
-    rfState = RFSTATE_RX;
-    return false;
-  }
-
-  // Wait for the sync word to be transmitted
-  wait_GDO0_high();
-
-  // Wait until the end of the packet transmission
-  wait_GDO0_low();
-
-  // Check that the TX FIFO is empty
-  if((readStatusReg(CC1101_TXBYTES) & 0x7F) == 0)
-    res = true;
-
-  setIdleState();       // Enter IDLE state
-  flushTxFifo();        // Flush Tx FIFO
-
-  // Enter back into RX state
-  setRxState();
-
-  // Declare to be in Rx state
-  rfState = RFSTATE_RX;
-
+        // Check that TX state is being entered (state = RXTX_SETTLING)
+        //nutiu todo: check transmission complete
+        if (!wait_for_tx_end(spi_parms, 10)){
+            //timeout
+            return false;
+        }; // Wait max 10ms
+        PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFTX); // Flush Tx FIFO
         
+        /* nutiu needed ??
+        // Wait for the sync word to be transmitted
+        wait_GDO0_high();
+
+        // Wait until the end of the packet transmission
+        wait_GDO0_low();
+         
+
+        // Check that the TX FIFO is empty
+        if((readStatusReg(CC1101_TXBYTES) & 0x7F) == 0)
+            res = true;
+
+        setIdleState();       // Enter IDLE state
+
+        // Enter back into RX state
+        setRxState();
+        nutiu needed ?? */
+        //check if we reached RX state again. The modem should switch to RX automatically after TX if the MCSM1 is set correctly 
+        if (!wait_for_state(spi_parms, CCxxx0_STATE_RX, 10)){
+            //timeout
+            return false;
+        }; 
+        // Declare to be in Rx state
+        rfState = RFSTATE_RX;
         //radio_wait_a_bit(4);
 
         print_block(4, (uint8_t *) packet->data, packet->length);
@@ -1214,43 +1237,3 @@ bool tx_handler(spi_parms_t *spi_parms)
         return true;
     }
 }
-
-/*
-void radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size)
-// ------------------------------------------------------------------------------------------------
-{
-    int     block_countdown = size / (arguments->packet_length - 2);
-    uint8_t *block_start = packet;
-    uint8_t block_length;
-
-    radio_int_data.tx_count = arguments->packet_length; // same block size for all
-
-    while (block_countdown >= 0)
-    {
-        block_length = (size > arguments->packet_length - 2 ? arguments->packet_length - 2 : size);
-
-        if (arguments->variable_length)
-        {
-            radio_int_data.tx_count = block_length + 2;
-        }
-
-        memset((uint8_t *) radio_int_data.tx_buf, 0, arguments->packet_length);
-        memcpy((uint8_t *) &radio_int_data.tx_buf[2], block_start, block_length);
-        radio_int_data.tx_buf[0] = block_length + 1; // size takes countdown counter into account
-        radio_int_data.tx_buf[1] = (uint8_t) block_countdown; 
-
-        radio_send_block(spi_parms, block_countdown);
-
-        if (block_countdown > 0)
-        {
-            radio_wait_a_bit(arguments->packet_delay);
-        }
-
-        block_start += block_length;
-        size -= block_length;
-        block_countdown--;
-    }
-
-    packets_sent++;
-}
-*/

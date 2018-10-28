@@ -15,8 +15,13 @@
 #include "lib/radio/params.h"
 #include "lib/radio/pi_cc_spi.h"
 #include "serial.h"
+#include "lib/inih/inireader.h"
+
+INIReader* ini;
+const char* inifile = "spaxmatic.ini";
 
 void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arguments);
 void server_init(arguments_t *arguments);
-
+void die(char* msg);
+void readIniFile();
 #endif

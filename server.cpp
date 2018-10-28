@@ -17,14 +17,108 @@
 #include "lib/radio/radio.h"
 #include "util.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+#include "mosquitto.h"
+
+struct mosquitto *mosq = NULL;
 
 // === Public functions ===========================================================================
+void die(char* msg){
+  fprintf(stderr, "%s\n", msg);
+  server_shutdown();
+  exit(1);
+}
 
-// ------------------------------------------------------------------------------------------------
-// Initialize the common parameters to defaults
-void server_init(arguments_t *arguments)
-// ------------------------------------------------------------------------------------------------
+int on_mqtt_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *msg)
 {
+	printf("%s %s (%d)\n", msg->topic, (const char *)msg->payload, msg->payloadlen);
+	return 0;
+}
+// ------------------------------------------------------------------------------------------------
+// Initialize the server, read ini file, init mqtt, etc
+
+void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
+{
+	if(message->payloadlen){
+		printf("%s %s\n", message->topic, message->payload);
+	}else{
+		printf("%s (null)\n", message->topic);
+	}
+	fflush(stdout);
+}
+
+void on_mqtt_connect(struct mosquitto *mosq, void *userdata, int result)
+{
+	int i;
+	if(!result){
+		/* Subscribe to broker information topics on successful connect. */
+		mosquitto_subscribe(mosq, NULL, "$SYS/#", 2);
+	}else{
+		fprintf(stderr, "Connect failed\n");
+	}
+}
+
+void on_subscribe_callback(struct mosquitto *mosq, void *userdata, int mid, int qos_count, const int *granted_qos)
+{
+	int i;
+	verbprintf(2, "Subscribed (mid: %d): %d", mid, granted_qos[0]);
+	for(i=1; i<qos_count; i++){
+		verbprintf(2, ", %d", granted_qos[i]);
+	}
+	verbprintf(2, "\n");
+}
+
+void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const char *str)
+{
+  verbprintf(4, "mqtt log: %s\n", str);
+}
+
+void server_shutdown(){
+  mosquitto_disconnect();
+  mosquitto_loop_stop(mosq, true);
+	mosquitto_destroy(mosq);  
+  mosquitto_lib_cleanup();
+  delete ini;
+}
+
+void readIniFile(){
+      //read ini file
+    if (ini == nullptr){
+      ini = new INIReader(inifile);
+      if (ini->ParseError() < 0) {
+          fprintf(stderr, "%s missing or corrupt\n", inifile);
+          die("Cannot continue");
+      }
+      verbprintf(1, "Config loaded from ", inifile);
+    }
+}
+
+void server_init()
+{
+  readIniFile();
+  mosquitto_lib_init();
+	mosq = mosquitto_new(NULL, true, NULL);
+	if(!mosq){
+		fprintf(stderr, "Error: Out of memory.\n");
+		return 1;
+	}
+	mosquitto_log_callback_set(mosq, on_log_callback);
+	mosquitto_connect_callback_set(mosq, on_connect_callback);
+	mosquitto_message_callback_set(mosq, on_message_callback);
+  
+	if(mosquitto_connect(mosq, ini->Get("mqtt", "broker_ip", "localhost"),
+      ini->GetInteger("mqtt", "broker_port", 1833),
+      ini->GetInteger("mqtt", "keepalive", 60)
+      ) != MOSQ_ERR_SUCCESS
+    ){
+		fprintf(stderr, "Unable to connect to mqtt broker.\n");
+		return ;
+	}
+
+	if (mosquitto_loop_start(mosq) != MOSQ_ERR_SUCCESS){
+    fprintf(stderr, "Unable to start mosquitto loop.\n");
+  };
 
 }
 
@@ -57,112 +151,38 @@ uint8_t server_command(uint8_t *block)
     return 1;
 }
 
+uint8_t radio_process_packet(){
+    if (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
+        CCPACKET packet = radio_int_data.rx_buf[radio_int_data.rx_buff_read_idx++];
+    }
+}
 // ------------------------------------------------------------------------------------------------
 // Run the server 
 void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
-   /*
-   if (commstack.cc1101.receiveData(&ccPacket) > 0)
-    {
-      if (ccPacket.crc_ok)
-      {
-        swPacket = SWPACKET(ccPacket);
-        // Repeater enabled?
-        if (commstack.repeater != NULL)
-          commstack.repeater->packetHandler(&swPacket);
-          // Function
-        switch(swPacket.function)
-        {
-            case SWAPFUNCT_ACK:
-              if (swPacket.destAddr != commstack.cc1101.devAddress){
-                if (commstack.stackState == STACKSTATE_WAIT_ACK){
-                  //check packet no
-                  if (swPacket.packetNo == commstack.sentPacketNo){
-                    commstack.stackState = STACKSTATE_READY;
-                  }
-                }else{
-                  commstack.errorCode = STACKERR_ACK_WITHOUT_SEND;
-                }
-              }else{
-                commstack.errorCode = STACKERR_WRONG_DEST_ADDR;
-              }
-                break;                
-            case SWAPFUNCT_CMD:
-              // Command not addressed to us?
-              if (swPacket.destAddr != commstack.cc1101.devAddress)
-                break;
-              // Destination address and register address must be the same
-              if (swPacket.destAddr != swPacket.regAddr)
-                break;
-              // Valid register?
-              if ((reg = getRegister(swPacket.regId)) == NULL)
-                break;
-              // Filter incorrect data lengths
-              if (swPacket.value.length == reg->length)
-                reg->setData(swPacket.value.data);
-              else
-                reg->sendSwapStatus();
-              break;
-            case SWAPFUNCT_QRY:
-              // Only Product Code can be broadcasted
-              if (swPacket.destAddr == SWAP_BCAST_ADDR)
-              {
-                if (swPacket.regId != REGI_PRODUCTCODE)
-                  break;
-              }
-              // Query not addressed to us?
-              else if (swPacket.destAddr != commstack.cc1101.devAddress)
-                break;
-              // Current version does not support data recording mode
-              // so destination address and register address must be the same
-              if (swPacket.destAddr != swPacket.regAddr)
-                break;
-              // Valid register?
-              if ((reg = getRegister(swPacket.regId)) == NULL)
-                break;
-              reg->getData();
-              break;
-            case SWAPFUNCT_STA:
-              // User callback function declared?
-              if (commstack.statusReceived != NULL)
-                commstack.statusReceived(&swPacket);
-              break;
-            default:
-              break;
-        }
-      }else{
-        Serial.println("CRC ERR");
-      }
-      */
-//#############################################    
-    static const size_t   bufsize = RADIO_BUFSIZE;
     uint32_t timeout_value;
-    uint8_t  rx_buffer[bufsize], tx_buffer[bufsize];
-    uint8_t  rtx_toggle; // 1:Tx, 0:Rx
-    uint8_t  rx_trigger; 
-    uint8_t  tx_trigger; 
-    uint8_t  force_mode;
-    int      rx_count, tx_count, byte_count, ret;
     uint64_t timestamp;
     struct timeval tp;  
 
     set_serial_parameters(serial_parms, arguments);
     init_radio_int(spi_parms, arguments);
-    memset(rx_buffer, 0, bufsize);
-    memset(tx_buffer, 0, bufsize);
     radio_flush_fifos(spi_parms);
     
     verbprintf(1, "Starting...\n");
+    server_init();
+    //connect to mqtt broker
 
-    force_mode = 1;
-    rtx_toggle = 0;
-    rx_trigger = 0;
-    tx_trigger = 0;
-    rx_count = 0;
-    tx_count = 0;
+    //enable radio rx
     radio_init_rx(spi_parms); // init for new packet to receive Rx
     radio_turn_rx(spi_parms);            // Turn Rx on
+
+    //server loop
+    while(1){
+        radio_process_packet();
+        tx_handler();
+      }
+    }
     /*
     while(1)
     {    

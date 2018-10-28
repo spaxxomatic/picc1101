@@ -77,8 +77,8 @@ uint8_t nb_preamble_bytes[] = {
 
 /***** Argp configuration start *****/
 
-const char *argp_program_version = "PiCC1101 0.1";
-static char doc[] = "PiCC1101 -- Raspberry Pi serial radio link using CC1101 module.";
+const char *argp_program_version = "SPAXSTACK 0.1";
+static char doc[] = "Spaxstack -- Raspberry Pi packet radio link using CC1101 module";
 static char args_doc[] = "";
 
 static struct argp_option options[] = {
@@ -448,7 +448,7 @@ int main (int argc, char **argv)
 // ------------------------------------------------------------------------------------------------
 {
     int i, ret;
-
+    readIniFile();
     // unsolicited termination handling
     struct sigaction sa;
     // Catch all signals possible on process exit!

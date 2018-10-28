@@ -1,7 +1,7 @@
-picc1101
+spaxmatic
 ========
 
-Connect Orange Pi to CC1101 RF module and play with AX.25/KISS to transmit TCP/IP over the air.
+Connects an Orange Pi or Raspberry Pi to CC1101 RF module and implements the spaxstack IoT protocol
 
 - [picc1101](#picc1101)
 - [Introduction](#introduction)
@@ -35,43 +35,48 @@ Connect Orange Pi to CC1101 RF module and play with AX.25/KISS to transmit TCP/I
   - [Mitigate AX.25/KISS spurious packet retransmissions](#mitigate-ax25kiss-spurious-packet-retransmissions)
 
 # Introduction
-The aim of this program is to connect a RF module based on the Texas Instruments (Chipcon) chip CC1101 to a Raspberry-Pi host machine. The CC1101 chip is a OOK/2-FSK/4-FSK/MSK/GFSK low power (~10dBm) digital transceiver working in the 315, 433 and 868 MHz ISM bands. The 433 MHz band also happens to cover the 70cm Amateur Radio band and the major drive of this work is to use these modules as a modern better alternative to the legacy [Terminal Node Controllers](http://en.wikipedia.org/wiki/Terminal_node_controller) or TNCs working in 1200 baud FM AFSK or 9600 baud G3RUH true 2-FSK modulation at best. Using the Linux native AX.25 and KISS interface to the TNCs it is then possible to route TCP/IP traffic using these modules offering the possibility to connect to the Amateur Radio private IP network known as [Hamnet](http://hamnetdb.net/).
+The RF module based on the Texas Instruments (Chipcon) chip CC1101  is a OOK/2-FSK/4-FSK/MSK/GFSK low power (~10dBm) digital transceiver working in the 315, 433 and 868 MHz ISM bands. It is used as a radio interface for conecting various sensors/actors in a home automation scenario. 
 
-Another opportunity is the direct transmission of a Transport Stream to carry low rate live video and this will be studied later.
+These RF modules are available from a variety of sellers on eBay. Search for words `CC1101` and `433 MHz`.
 
-These RF modules are available from a variety of sellers on eBay. Search for words `CC1101` and `433 MHz`. The Raspberry-Pi doesn't need to be introduced any further. If you are reading these lines you probably know what it is!
+The CC1101 chip has all the necessary features to cover the OSI layer 1 (physical). In the context of this project, it is used in packet mode. 
 
-The CC1101 chip implements preamble, sync word, CRC, data whitening and FEC using convolutive coding natively. It is a very nice little cheap chip for our purpose. It has all the necessary features to cover the OSI layer 1 (physical). Its advertised speed ranges from 600 to 500000 Baud (300000 in 4-FSK) but it can go as low as 50 baud however details on performance at this speed have not been investigated. Yet the program offers this possibility.
-
-The CC1101 chip is interfaced using a SPI bus that is implemented natively on the Raspberry-PI and can be accessed through the `spidev` library. In addition two GPIOs must be used to support the handling of the CC1101 Rx and Tx FIFOs. For convenience GPIO-24 and GPIO-25 close to the SPI bus on the Raspberry-Pi are chosen to be connected to the GDO0 and GDO2 lines of the CC1101 respectively. The WiringPi library is used to support the GPIO interrupt handling.
+The CC1101 chip is interfaced using a SPI bus that is implemented natively on the Orange/Raspberry PI and can be accessed through the `spidev` library. In addition two GPIOs must be used to support the handling of the CC1101 Rx and Tx FIFOs. For convenience GPIO-24 and GPIO-25 close to the SPI bus on the Orange-Pi are chosen to be connected to the GDO0 and GDO2 lines of the CC1101 respectively. The WiringPi library is used to support the GPIO interrupt handling.
 
 The CC1101 data sheet is available [here](www.ti.com/lit/ds/symlink/cc1101.pdf).
 
 # Disclaimer
-You are supposed to use the CC1101 modules and this software sensibly. Please check your local radio spectrum regulations. 
+This software is provided "as is" and "with all faults.". I give no warranty of any kind and cannot guarantee the safety, suitability, lack of viruses, inaccuracies, typographical errors, or other harmful components inside the SW. You are solely responsible for the protection of your equipment and backup of your data, and I am not liable for any damages you may suffer in connection with using, modifying, or distributing this software.
 
-For Amateur Radio use you should have a valid Amateur Radio licence with a callsign and transmit in the bands and conditions granted by your local regulations also please try to respect the IARU band plan. In most if not all countries you are not allowed to transmit encrypted data so please do not route SSL traffic like `https` or `ssh`. Use plain `http` or `telnet` instead.
+You are supposed to use the CC1101 radio modules according to your local radio spectrum regulations. 
 
 # Installation and basic usage
 ## Prerequisites
-This has been tested successfully on a Raspberry Pi version 1 B with kernel 3.12.36. Raspberry Pi version 2 with a 3.18 kernel does not work.
+This has been tested successfully on a Raspberry Pi version 1 B with kernel 3.12.36 and on Orange Pi with an Armbian with mainline kernel 4.14.y
 
+SPI drivers for Raspberry Pi:
 For best performance you will need the DMA based SPI driver for BCM2708 found [here](https://github.com/notro/spi-bcm2708.git) After successful compilation you will obtain a kernel module that is to be stored as `/lib/modules/$(uname -r)/kernel/drivers/spi/spi-bcm2708.ko` 
+
+SPI Drivers for Orange Pi:
+The DMA based SPI driver for Orange PI can be found [here](https://github.com/notro/spi-bcm2708.git) 
+After successful compilation you will obtain a kernel module that is to be stored as `/lib/modules/$(uname -r)/kernel/drivers/spi/spi-bcm2708.ko` 
+// TODO: check info about SPI on OPi
 
 You will have to download and install the WiringPi library found [here](http://wiringpi.com/) 
 
 The process relies heavily on interrupts that must be served in a timely manner. You are advised to reduce the interrupts activity by removing USB connected devices as much as possible.
 
 ## Obtain the code
-Just clone this repository in a local folder of your choice on the Raspberry Pi
+Just clone this repository in a local folder of your choice on the Raspberry/Orange Pi
 
 ## Compilation
 You can compile on the Raspberry Pi v.1 as it doesn't take too much time even on the single core BCM2735. You are advised to activate the -O3 optimization:
   - `CFLAGS=-O3 make`
 
-The result is the `picc1101` executable in the same directory
+The result is the `spaxxserver` executable in the /out directory
 
 ## Run test programs
+// TODO
 On the sending side:
   - `sudo ./picc1101 -v1 -B 9600 -P 252 -R7 -M4 -W -l15 -t2 -n5`
 

@@ -118,6 +118,10 @@ typedef volatile struct radio_int_data_s
     uint8_t      last_error;
 } radio_int_data_t;
 
+
+static radio_int_data_t *p_radio_int_data = 0;
+static radio_int_data_t radio_int_data;
+
 extern const char     *state_names[];
 extern float    chanbw_limits[];
 
@@ -141,7 +145,7 @@ void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
 static bool     tx_handler(spi_parms_t *spi_parms);
-static uint8_t  radio_receive_block(uint8_t *block, uint32_t *size, uint8_t *crc);
+static uint8_t  radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc);
 
 //void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
 //uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);

@@ -73,8 +73,10 @@
 
 #define CC1101_DEFVAL_MCSM2      0x07        // Main Radio Control State Machine Configuration
 //#define CC1101_DEFVAL_MCSM1      0x30        // Main Radio Control State Machine Configuration - this value enables the CCA_MODE - clear channel indication
-#define CC1101_DEFVAL_MCSM1      0x20        // Main Radio Control State Machine Configuration
-#define CC1101_DEFVAL_MCSM0      0x18        // Main Radio Control State Machine Configuration
+//#define CC1101_DEFVAL_MCSM1      0x20        // Main Radio Control State Machine Configuration - going to IDLE after TX
+#define CC1101_DEFVAL_MCSM1      0b101111      // Main Radio Control State Machine Configuration - going to RX after RX, going to RX after TX
+
+#define CC1101_DEFVAL_MCSM0      0b11000        // Main Radio Control State Machine Configuration
 #define CC1101_DEFVAL_FOCCFG     0x16        // Frequency Offset Compensation Configuration
 #define CC1101_DEFVAL_BSCFG      0x6C        // Bit Synchronization Configuration
 #define CC1101_DEFVAL_AGCCTRL2   0x43        // AGC Control
