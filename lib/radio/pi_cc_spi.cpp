@@ -264,7 +264,7 @@ int PI_CC_SPIWriteBurstReg(spi_parms_t *spi_parms, uint8_t addr, const uint8_t *
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *byte)
+int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *data)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->tx[0] = addr | PI_CCxxx0_READ_SINGLE; // Send address
@@ -279,12 +279,12 @@ int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *byte)
         return 1;
     }
 
-    *byte = spi_parms->rx[1];
+    *data = (uint8_t) spi_parms->rx[1];
     return 0;
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t **buffer, uint8_t count)
+int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte **buffer, uint8_t count)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t i;

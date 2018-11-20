@@ -1,30 +1,28 @@
 /******************************************************************************/
-/* PiCC1101  - Radio serial link using CC1101 module and Raspberry-Pi         */
-/*                                                                            */
-/*                                                                            */
-/*                      (c) Edouard Griffiths, F4EXB, 2015                    */
-/*                                                                            */
-/*
+/* Radio server using CC1101 on Raspberry-Pi 
+/*                      (c) Edouard Griffiths, F4EXB, 2015                    
+/*                      (c) Lucian Nutiu, 2018
 /******************************************************************************/
 
 #include <stdio.h>      // standard input / output functions
 #include <stdlib.h>
+#include <iostream>
 #include <argp.h>
 #include <string.h>
 #include <signal.h>
 
 #include "lib/radio/params.h"
 #include "util.h"
-#include "serial.h"
 #include "lib/radio/pi_cc_spi.h"
 #include "lib/radio/radio.h"
 #include "server.h"
 #include "test.h"
 
 arguments_t   arguments;
-serial_t      serial_parameters;
 spi_parms_t   spi_parameters;
 radio_parms_t radio_parameters;
+
+using namespace std;
 
 char const *test_mode_names[] = {
     "No test",
@@ -368,18 +366,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             if (*end)
                 argp_usage(state);
             break; 
-        // Serial device
-        case 'D':
-            arguments->serial_device = strdup(arg);
-            break;
-        // Serial speed  
-        case 'B':
-            i32 = strtol(arg, &end, 10); 
-            if (*end)
-                argp_usage(state);
-            else
-                arguments->serial_speed = get_serial_speed(i32, &(arguments->serial_speed_n));
-            break;
         // SPI device
         case 'd':
             arguments->spi_device = strdup(arg);
@@ -537,7 +523,7 @@ int main (int argc, char **argv)
     else
     {
         server_init(&arguments);
-        server_run(&serial_parameters, &spi_parameters, &arguments);    
+        server_run(&spi_parameters, &arguments);    
     }
 
     delete_args(&arguments);

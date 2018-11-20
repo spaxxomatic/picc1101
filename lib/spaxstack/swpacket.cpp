@@ -32,17 +32,17 @@
  * 
  * 'packet'	Raw CC1101 packet
  */
-SWPACKET::SWPACKET(CCPACKET packet) 
+SWPACKET::SWPACKET(volatile CCPACKET* packet) 
 {
-  destAddr = packet.data[0];
-  srcAddr = packet.data[1];
-  hop = (packet.data[2] >> 4) & 0x0F;
-  packetNo = packet.data[3];
-  function = packet.data[4];
-  regAddr = packet.data[5];
-  regId = packet.data[6];
-  value.data = packet.data + 7;
-  value.length = packet.length - SWAP_DATA_HEAD_LEN - 1;
+  destAddr = packet->data[0];
+  srcAddr = packet->data[1];
+  hop = (packet->data[2] >> 4) & 0x0F;
+  packetNo = packet->data[3];
+  function = packet->data[4];
+  regAddr = packet->data[5];
+  regId = packet->data[6];
+  value.data = packet->data + 7;
+  value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
 }
 
 /**
@@ -55,15 +55,14 @@ SWPACKET::SWPACKET(void)
 }
 
 /**
- * send
+ * prepare
  * 
- * Send SWAP packet. Do up to SWAP_NB_TX_TRIES retries if necessary
+ * Prepares and returns a CCPACKET ready to be sent.
  *
  * Return:
- *  True if the transmission succeeds
- *  False otherwise
+ *  CCPACKET
  */
-bool SWPACKET::send(void)
+CCPACKET SWPACKET::prepare(void)
 {
   CCPACKET packet;
   byte i;
@@ -81,15 +80,9 @@ bool SWPACKET::send(void)
   for(i=0 ; i<value.length ; i++)
     packet.data[i+7] = value.data[i];
 
-  i = SWAP_NB_TX_TRIES;
-  while(!(res = commstack.cc1101.sendData(packet)) && i>1)
-  {
-    i--;
-    delay(SWAP_TX_DELAY);
-  }
   commstack.sentPacketNo+=1; //increment packet number for next transmission
   commstack.stackState = STACKSTATE_WAIT_ACK;
-  return res;
+  return packet;
 }
 
 

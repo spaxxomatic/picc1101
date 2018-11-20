@@ -37,7 +37,7 @@
 SWQUERY::SWQUERY(byte dAddr, byte rAddr, byte rId)
 {
   destAddr = dAddr;
-  srcAddr = commstack.cc1101.devAddress;
+  srcAddr = MASTER_ADDRESS;
   hop = 0;
   function = SWAPFUNCT_QRY;
   regAddr = rAddr;

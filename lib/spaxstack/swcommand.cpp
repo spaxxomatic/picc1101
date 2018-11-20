@@ -39,7 +39,7 @@
 SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte rId, byte *val, byte len)
 {
   destAddr = dAddr;
-  srcAddr = commstack.cc1101.devAddress;
+  srcAddr = MASTER_ADDRESS;
   hop = 0;
   function = SWAPFUNCT_CMD;
   regAddr = rAddr;

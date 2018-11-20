@@ -12,7 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+//when compiling in mocked mode, include the mock and disable the global include
+#ifdef _MOCKED
+#include "../../mocks/wiringPi.h"
+#else 
 #include <wiringPi.h>
+#endif
 
 #include "params.h"
 #include "../../util.h"
@@ -76,6 +81,18 @@ float chanbw_limits[] = {
     58000.0
 };
 
+
+CODE_TO_DESCR ERR_DESCRIPTIONS[] = 
+{
+    {RADIO_PACKET_OK, "Packet OK"}, 
+    {RADIOERR_PACKET_TOO_LONG, "Packet too long"}, 
+    {RADIOERR_PACKET_CRC_ERR, "CRC ERR"}
+};
+
+
+volatile CCPACKET  tx_ccpacket_buf[BUFF_SIZE]; // Tx buffer
+CCPACKET  rx_ccpacket_buf[BUFF_SIZE]; // Rx buffer
+
 // === Static functions declarations ==============================================================
 
 static float    rssi_dbm(uint8_t rssi_dec);
@@ -84,8 +101,7 @@ static uint8_t  get_mod_word(modulation_t modulation_code);
 static uint32_t get_if_word(uint32_t freq_xtal, uint32_t if_hz);
 static void     get_chanbw_words(float bw, radio_parms_t *radio_parms);
 static void     get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms);
-static void     wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeout);
-static void     print_received_packet(int verbose_min);
+static bool     wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeout);
 static uint8_t  crc_check(uint8_t *block);
 
 // === Interupt handlers ==========================================================================
@@ -138,13 +154,14 @@ void irq_handle_packet(void){
     // The pos 0 (first byte) in the buffer will contain the error code. 
     // Errors will be stored inside the packet. If the packet is too long no data will be copied to the buff
     
-    byte rxBytes;
-    byte rxDataLength;
+    uint8_t rxBytes;
+    uint8_t rxDataLength;
     static CCPACKET packet;
+    byte* dataptr = packet.data;
     packet.errorCode = 0;
     if (p_radio_int_data->mode == RADIOMODE_RX){
         verbprintf(3, "GDO0 Rx irq\n");
-        PI_CC_SPIReadStatus(p_radio_int_data->spi_parms, PI_CCxxx0_RXBYTES, &rx_count); //contains the number of bytes in the rx fifo
+        PI_CC_SPIReadStatus(p_radio_int_data->spi_parms, PI_CCxxx0_RXBYTES, &rxBytes); 
         // Any byte waiting to be read and no overflow?
         if (rxBytes & 0x7F && !(rxBytes & 0x80)){ //is there data to be read and no overflow?
             // Read data length
@@ -156,7 +173,7 @@ void irq_handle_packet(void){
                 //readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
                 //read the net data
                 packet.length = rxDataLength;
-                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, packet.data, packet.length+2);
+                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &dataptr, packet.length+2);
                 //the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is 
                 // Read RSSI
                 //packet.rssi = readConfigReg(CC1101_RXFIFO);
@@ -164,7 +181,7 @@ void irq_handle_packet(void){
                 //val = readConfigReg(CC1101_RXFIFO);
                 packet.rssi = packet.data[rxDataLength]; //first byte after data 
                 packet.lqi = packet.data[rxDataLength+2] & 0x7F;
-                crc_ok = bitRead(packet.data[rxDataLength+2], 7);
+                bool crc_ok = bitRead(packet.data[rxDataLength+2], 7);
                 if (! crc_ok){
                     packet.errorCode = RADIOERR_PACKET_CRC_ERR; 
                 }
@@ -182,11 +199,10 @@ void irq_handle_packet(void){
             }
             */
         }   
-        p_radio_int_data->rx_buf[p_radio_int_data->rx_buff_idx][0] = packet.errorCode; 
+        rx_ccpacket_buf[p_radio_int_data->rx_buff_idx].errorCode = packet.errorCode; 
         //copy the rest only if there are no errors
         if (packet.errorCode == 0){
-            //memcpy((uint8_t *) &(p_radio_int_data->rx_buf[p_radio_int_data->rx_buff_idx]), packet.data, packet.length+2);
-            p_radio_int_data.rx_buf[p_radio_int_data->rx_buff_idx].copy(&packet);
+            rx_ccpacket_buf[p_radio_int_data->rx_buff_idx].copy(&packet);
         }
         //increment the buff counter
         if (p_radio_int_data->rx_buff_idx >= BUFF_SIZE)
@@ -389,6 +405,7 @@ void get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms)
 
     get_chanbw_words(2.0*(deviat + drate), radio_parms); // Apply Carson's rule for bandwidth
 
+    #ifndef _MOCKED
     radio_parms->drate_e = (uint8_t) (floor(log2( drate*(1<<20) / f_xtal )));
     radio_parms->drate_m = (uint8_t) (((drate*(1<<28)) / (f_xtal * (1<<radio_parms->drate_e))) - 256);
     radio_parms->drate_e &= 0x0F; // it is 4 bits long
@@ -399,6 +416,7 @@ void get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms)
     radio_parms->deviat_m &= 0x07; // it is 3 bits long
 
     radio_parms->chanspc_e &= 0x03; // it is 2 bits long
+    #endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -459,30 +477,6 @@ bool wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeo
         }
     }    
 }
-
-// ------------------------------------------------------------------------------------------------
-void print_received_packet(CCPACKET* packet)
-// Print a received packet stored in the interrupt data block
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t rssi_dec, crc_lqi;
-    int i;
-    CCPACKET thisPa
-    verbprintf(verbose_min, "Rx: packet length %d, FIFO was hit %d times\n", 
-        radio_int_data.length);
-    print_block(verbose_min+2, (uint8_t *) radio_int_data.rx_buf, radio_int_data.rx_count);
-
-    rssi_dec = radio_int_data.rx_buf[radio_int_data.rx_count-2];
-    crc_lqi  = radio_int_data.rx_buf[radio_int_data.rx_count-1];
-    radio_int_data.rx_buf[radio_int_data.rx_count-2] = '\0';
-
-    verbprintf(verbose_min, "%d: (%03d) \"%s\"\n", radio_int_data.rx_buf[1], radio_int_data.rx_buf[0] - 1, &radio_int_data.rx_buf[2]);
-    verbprintf(verbose_min, "RSSI: %.1f dBm. LQI=%d. CRC=%d\n", 
-        rssi_dbm(rssi_dec),
-        0x7F - (crc_lqi & 0x7F),
-        (crc_lqi & PI_CCxxx0_CRC_OK)>>7);
-}
-
 
 // === Public functions ===========================================================================
 
@@ -1035,8 +1029,6 @@ void print_radio_parms(radio_parms_t *radio_parms)
         radio_get_rate(radio_parms), radio_parms->drate_m, radio_parms->drate_e);
     fprintf(stderr, "Deviation ..............: %.3f kHz (M=%d, E=%d)\n",
         ((radio_parms->f_xtal/1e3) / (1<<17)) * (8 + radio_parms->deviat_m) * (1<<radio_parms->deviat_e), radio_parms->deviat_m, radio_parms->deviat_e);
-    fprintf(stderr, "Packet time ............: %d us\n",
-        (uint32_t) (radio_parms->packet_length * radio_get_byte_time(radio_parms)));
     fprintf(stderr, "Byte time ..............: %d us\n",
         ((uint32_t) radio_get_byte_time(radio_parms)));
 }
@@ -1169,6 +1161,51 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
 }
 */
 
+uint8_t radio_process_packet(){
+    if (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
+        SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx++]);
+        switch(swPacket.function)
+        {
+            case SWAPFUNCT_ACK:
+              if (swPacket.destAddr != MASTER_ADDRESS){
+                if (commstack.stackState == STACKSTATE_WAIT_ACK){
+                  //check packet no
+                  if (swPacket.packetNo == commstack.sentPacketNo){
+                    commstack.stackState = STACKSTATE_READY;
+                  }
+                }else{
+                  commstack.errorCode = STACKERR_ACK_WITHOUT_SEND;
+                }
+              }else{
+                commstack.errorCode = STACKERR_WRONG_DEST_ADDR;
+              }
+                break;                
+            case SWAPFUNCT_CMD:
+              // Command not addressed to us?
+              if (swPacket.destAddr != MASTER_ADDRESS)
+                break;
+              // Destination address and register address must be the same
+              if (swPacket.destAddr != swPacket.regAddr)
+                break;
+              // Filter incorrect data lengths
+            case SWAPFUNCT_QRY:
+              // Query not addressed to us?
+              if (swPacket.destAddr != MASTER_ADDRESS)
+                break;
+              // Current version does not support data recording mode
+              // so destination address and register address must be the same
+              if (swPacket.destAddr != swPacket.regAddr)
+                break;
+              break;
+            case SWAPFUNCT_STA:
+              // User callback function declared?
+              break;
+            default:
+              break;
+        } 
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Transmission of a block
 bool tx_handler(spi_parms_t *spi_parms)
@@ -1178,19 +1215,22 @@ bool tx_handler(spi_parms_t *spi_parms)
 
     radio_int_data.mode = RADIOMODE_TX;
     radio_int_data.packet_send = 0;
-
-    //look if there is anthing to be sent in the tx buff
-    if (tx_buff_idx == tx_buff_idx_ins){ //nothing added to the buff, return
+    if (radio_process_packet()){
+        return false;
+    };
+    //look if there is anything to be sent in the tx buff
+    if (radio_int_data.tx_buff_idx == radio_int_data.tx_buff_idx_ins){ //nothing added to the buff, return
         return true;
     }else{
-        CCPACKET *packet = radio_int_data.tx_buf[tx_buff_idx++];
+        volatile CCPACKET *packet = &tx_ccpacket_buf[radio_int_data.tx_buff_idx++];
         //radio_set_packet_length(spi_parms, packet->length);
         PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x02); // GDO2 output pin config TX mode
         PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFTX); //flush the fifo buffer
         // Set data length at the first position of the TX FIFO
-        writeReg(CC1101_TXFIFO,  packet->length);
+        //writeReg(PI_CCxxx0_TXFIFO,  packet->length);
         // Write data into the TX FIFO
-        writeBurstReg(CC1101_TXFIFO, packet->data, packet->length);
+        //writeBurstReg(PI_CCxxx0_TXFIFO, packet->data, packet->length);
+
         PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
         PI_CC_SPIWriteBurstReg(spi_parms, PI_CCxxx0_TXFIFO, (uint8_t *) packet->data, packet->length); //write the payload data
         
@@ -1227,13 +1267,9 @@ bool tx_handler(spi_parms_t *spi_parms)
             return false;
         }; 
         // Declare to be in Rx state
-        rfState = RFSTATE_RX;
         //radio_wait_a_bit(4);
-
-        print_block(4, (uint8_t *) packet->data, packet->length);
-        
+        print_block(4, (uint8_t *) packet->data, packet->length);        
         verbprintf(2,"Tx: sent %d bytes\n", packet->length);
-        
         return true;
     }
 }

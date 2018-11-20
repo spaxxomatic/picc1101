@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 
  * USA
  * 
- * Author: Daniel Berenguer, Lucian Nutiu 
+ * Author: Lucian Nutiu 
  * Creation date: 04/24/2011
  */
 
@@ -38,9 +38,6 @@ void REGISTER::getData(void)
   // Update register value
   if (updateValue != NULL)
     updateValue(id);
-
-  // Send SWAP status message about the new value
-  sendSwapStatus();
 }
 
 /**
@@ -55,19 +52,15 @@ void REGISTER::setData(byte *data)
   // Update register value
   if (setValue != NULL)
     setValue(id, data);
-
-  // Send SWAP status message
-  sendSwapStatus();
 }
 
 /**
  * sendSwapStatus
  * 
- * Send SWAP status message
+ * Gets the SWAP status message ready to be send
  */
-void REGISTER::sendSwapStatus(void) 
+void REGISTER::getSwapStatus(void) 
 {
   SWSTATUS packet = SWSTATUS(id, value, length);
-  packet.send();
 }
 

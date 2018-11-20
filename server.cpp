@@ -19,10 +19,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "mosquitto.h"
+#include "lib/mqtt/mosquitto.h"
+#include "lib/radio/radio.h"
+
+const char* inifile = "spaxmatic.ini";
+INIReader* inireader ;
 
 struct mosquitto *mosq = NULL;
-
+void server_shutdown(); 
 // === Public functions ===========================================================================
 void die(char* msg){
   fprintf(stderr, "%s\n", msg);
@@ -48,7 +52,7 @@ void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mo
 	fflush(stdout);
 }
 
-void on_mqtt_connect(struct mosquitto *mosq, void *userdata, int result)
+void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
 {
 	int i;
 	if(!result){
@@ -75,18 +79,18 @@ void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const ch
 }
 
 void server_shutdown(){
-  mosquitto_disconnect();
+  mosquitto_disconnect(mosq);
   mosquitto_loop_stop(mosq, true);
 	mosquitto_destroy(mosq);  
   mosquitto_lib_cleanup();
-  delete ini;
+  delete inireader;
 }
 
 void readIniFile(){
       //read ini file
-    if (ini == nullptr){
-      ini = new INIReader(inifile);
-      if (ini->ParseError() < 0) {
+    if (inireader == nullptr){
+      inireader = new INIReader(inifile);
+      if (inireader->ParseError() < 0) {
           fprintf(stderr, "%s missing or corrupt\n", inifile);
           die("Cannot continue");
       }
@@ -94,24 +98,24 @@ void readIniFile(){
     }
 }
 
-void server_init()
+void server_init(arguments_t *arguments)
 {
   readIniFile();
   mosquitto_lib_init();
 	mosq = mosquitto_new(NULL, true, NULL);
 	if(!mosq){
 		fprintf(stderr, "Error: Out of memory.\n");
-		return 1;
+		return;
 	}
 	mosquitto_log_callback_set(mosq, on_log_callback);
 	mosquitto_connect_callback_set(mosq, on_connect_callback);
 	mosquitto_message_callback_set(mosq, on_message_callback);
-  
-	if(mosquitto_connect(mosq, ini->Get("mqtt", "broker_ip", "localhost"),
-      ini->GetInteger("mqtt", "broker_port", 1833),
-      ini->GetInteger("mqtt", "keepalive", 60)
-      ) != MOSQ_ERR_SUCCESS
-    ){
+
+	int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
+      inireader->GetInteger("mqtt", "broker_port", 1833),
+      inireader->GetInteger("mqtt", "keepalive", 60)
+      )  ;
+  if( conn_ret != MOSQ_ERR_SUCCESS){
 		fprintf(stderr, "Unable to connect to mqtt broker.\n");
 		return ;
 	}
@@ -151,120 +155,28 @@ uint8_t server_command(uint8_t *block)
     return 1;
 }
 
-uint8_t radio_process_packet(){
-    if (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
-        CCPACKET packet = radio_int_data.rx_buf[radio_int_data.rx_buff_read_idx++];
-    }
-}
 // ------------------------------------------------------------------------------------------------
 // Run the server 
-void server_run(serial_t *serial_parms, spi_parms_t *spi_parms, arguments_t *arguments)
+void server_run(spi_parms_t *spi_parms, arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     uint32_t timeout_value;
     uint64_t timestamp;
     struct timeval tp;  
 
-    set_serial_parameters(serial_parms, arguments);
     init_radio_int(spi_parms, arguments);
     radio_flush_fifos(spi_parms);
     
     verbprintf(1, "Starting...\n");
-    server_init();
+    server_init(arguments);
     //connect to mqtt broker
 
     //enable radio rx
     radio_init_rx(spi_parms); // init for new packet to receive Rx
-    radio_turn_rx(spi_parms);            // Turn Rx on
+    radio_turn_rx(spi_parms); // Turn Rx on
 
     //server loop
     while(1){
-        radio_process_packet();
-        tx_handler();
+        tx_handler(spi_parms);
       }
-    }
-    /*
-    while(1)
-    {    
-        byte_count = radio_receive_packet(spi_parms, arguments, &rx_buffer[rx_count]); // check if anything was received on radio link
-
-        if (byte_count > 0)
-        {
-            rx_count += byte_count;  // Accumulate Rx
-            
-            gettimeofday(&tp, NULL);
-            timestamp = tp.tv_sec * 1000000ULL + tp.tv_usec;
-            timeout_value = arguments->tnc_radio_window;
-            force_mode = (timeout_value == 0);
-
-            if (rtx_toggle) // Tx to Rx transition
-            {
-                tx_trigger = 1; // Push Tx
-            }
-            else
-            {
-                tx_trigger = 0;
-            }
-
-            radio_init_rx(spi_parms, arguments); // Init for new packet to receive
-            rtx_toggle = 0;
-        }
-
-        byte_count = read_serial(serial_parms, &tx_buffer[tx_count], bufsize - tx_count);
-
-        if (byte_count > 0)
-        {
-            tx_count += byte_count;  // Accumulate Tx
-
-            gettimeofday(&tp, NULL);
-            timestamp = tp.tv_sec * 1000000ULL + tp.tv_usec;
-            timeout_value = arguments->tnc_serial_window;
-            force_mode = (timeout_value == 0);
-
-            if (!rtx_toggle) // Rx to Tx transition
-            {
-                rx_trigger = 1;
-            }
-            else
-            {
-                rx_trigger = 0;
-            }
-
-            rtx_toggle = 1;
-        }
-
-        if ((rx_count > 0) && ((rx_trigger) || (force_mode))) // Send bytes received on air to serial
-        {
-            radio_wait_free();            // Make sure no radio operation is in progress
-            radio_turn_idle(spi_parms);   // Inhibit radio operations
-            verbprintf(2, "Received %d bytes\n", rx_count);
-            ret = write_serial(serial_parms, rx_buffer, rx_count);
-            verbprintf(2, "Sent %d bytes on serial\n", ret);
-            radio_init_rx(spi_parms, arguments); // Init for new packet to receive Rx
-            radio_turn_rx(spi_parms);            // Put back into Rx
-            rx_count = 0;
-            rx_trigger = 0;
-        }
-
-        if ((tx_count > 0) && ((tx_trigger) || (force_mode))) // Send bytes received on serial to air 
-        {
-
-                radio_wait_free();            // Make sure no radio operation is in progress
-                radio_turn_idle(spi_parms);   // Inhibit radio operations (should be superfluous since both Tx and Rx turn to IDLE after a packet has been processed)
-                radio_flush_fifos(spi_parms); // Flush result of any Rx activity
-
-                verbprintf(2, "%d bytes to send\n", tx_count);
-
-                radio_send_packet(spi_parms, arguments, tx_buffer, tx_count);
-
-                radio_init_rx(spi_parms, arguments); // init for new packet to receive Rx
-                radio_turn_rx(spi_parms);            // put back into Rx
-            tx_count = 0;
-            tx_trigger = 0;            
-        }
-
-        radio_wait_a_bit(4);
-        
-    }
-    */
 }

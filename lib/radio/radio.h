@@ -12,7 +12,10 @@
 
 #include "pi_cc_spi.h"
 #include "pi_cc_cc1101.h"
+#include "../spaxstack/protocol.h"
 #include "../spaxstack/ccpacket.h"
+#include "../spaxstack/swpacket.h"
+#include "../spaxstack/spaxstack.h"
 
 #define WPI_GDO0 5 // For Wiring Pi, 5 is GPIO_24 connected to GDO0
 #define WPI_GDO2 6 // For Wiring Pi, 6 is GPIO_25 connected to GDO2
@@ -85,13 +88,6 @@ typedef struct
     char* description;  
 } CODE_TO_DESCR;	
 
-CODE_TO_DESCR ERR_DESCRIPTIONS[] = 
-{
-    {RADIO_PACKET_OK, "Packet OK"}, 
-    {RADIOERR_PACKET_TOO_LONG, "Packet too long"}, 
-    {RADIOERR_PACKET_CRC_ERR, "CRC ERR"}
-};
-
 typedef enum radio_mode_e
 {
     RADIOMODE_NONE = 0,
@@ -99,15 +95,13 @@ typedef enum radio_mode_e
     RADIOMODE_TX
 } radio_mode_t;
  
-#define BUFF_SIZE 32
+#define BUFF_SIZE 64
 
 typedef volatile struct radio_int_data_s 
 {
     spi_parms_t  *spi_parms;             // SPI link parameters
     radio_mode_t mode;                   // Radio mode (essentially Rx or Tx)
-    CCPACKET     tx_buf[BUFF_SIZE]; // Tx buffer
     uint8_t      tx_count;               // Number of bytes in Tx buffer
-    CCPACKET     rx_buf[BUFF_SIZE]; // Rx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
     uint8_t      tx_buff_idx;        //Index of the last packet tramsitted in the tx buffer
     uint8_t      tx_buff_idx_ins;        //Index of the last packet inserted in the tx buffer
@@ -121,6 +115,9 @@ typedef volatile struct radio_int_data_s
 
 static radio_int_data_t *p_radio_int_data = 0;
 static radio_int_data_t radio_int_data;
+
+volatile static int packets_sent = 0;
+volatile static int packets_received = 0;
 
 extern const char     *state_names[];
 extern float    chanbw_limits[];

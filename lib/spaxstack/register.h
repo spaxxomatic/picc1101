@@ -98,11 +98,9 @@ class REGISTER
     void setData(byte *data);
 
     /**
-     * sendSwapStatus
-     * 
-     * Send SWAP status message
+     * getSwapStatus
      */
-    void sendSwapStatus(void);
+    void getSwapStatus(void);
 
     /**
      * setRegValue

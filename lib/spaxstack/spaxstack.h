@@ -30,25 +30,9 @@
 #include "swpacket.h"
 #include "swquery.h"
 #include "config.h"
-#include "repeater.h"
 
-
-/**
- * RTC definitions
- */
-#define RTC_250MS    0x03   // Timer 2 prescaler = 32
-#define RTC_500MS    0x04   // Timer 2 prescaler = 64
-#define RTC_1S       0x05   // Timer 2 prescaler = 128
-#define RTC_2S       0x06   // Timer 2 prescaler = 256
-#define RTC_8S       0x07   // Timer 2 prescaler = 1024
-
-/**
- * Macros
- */
-#define setSwapStatusCallBack(ptrFunc)   statusReceived = ptrFunc
-
-#define setHighTxPower()    cc1101.setTxPowerAmp(PA_LongDistance)
-#define setLowTxPower()     cc1101.setTxPowerAmp(PA_LowPower)
+#define BROADCAST_ADDRESS 0X00
+#define MASTER_ADDRESS 0X01
 
 enum STACKSTATE
 {
@@ -73,28 +57,6 @@ typedef struct
  */
 class SPAXSTACK
 {
-  private:
-    /**
-     * setup_watchdog
-     * 
-     * 'time'	Watchdog timer value
-     */
-    void setup_watchdog(byte time);
-    void(*showActivity)(void);
-    /**
-     * setup_rtc
-     *
-     * Setup software (Timer 2) RTC
-     *
-     * 'time'   Timer2 prescaler
-     *
-     *          RTC_1S = 128 for 1 sec
-     *          RTC_2S = 256 for 2 sec
-     *          RTC_8S = 1024 for 8 sec
-     */
-    void setup_rtc(byte time);
-    // a flag that a wireless packet has been received
-
   public:
     /**
      * repeater
@@ -105,28 +67,7 @@ class SPAXSTACK
     byte seqNo ; //sequence number of the received packet
     bool bEnterSleep;
     bool bDebug;
-    bool ping(void) ;
-    void receive_loop();
-    //counter for watchdog timer
-    volatile byte f_wdt ;
     //flags reception available, will by set by the ISR
-    volatile bool packetAvailable ; 
-
-    REPEATER *repeater;
-
-    /**
-     * True if the external 32.768 KHz crystal is enabled
-     */
-    bool rtcCrystal;
-
-    /**
-     * CC1101 radio interface
-     */
-    CC1101 cc1101;
-    byte master_address[2];
-    /**
-     * Packet number
-     */
     byte sentPacketNo;
     /**
      * Stack error code
@@ -136,34 +77,6 @@ class SPAXSTACK
      * System state
      */
     byte stackState;
-
-    /**
-     * Interval between periodic transmissions. 0 for asynchronous transmissions
-     */
-    byte txInterval[2];
-
-    void enterSleep(void);
-    /**
-     * enableRepeater
-     *
-     * Enable repeater mode
-     */
-    void enableRepeater(void);
-
-    /**
-     * enableRepeater
-     *
-     * Enable repeater mode
-     *
-     * 'maxHop'  MAximum repeater count. Zero if omitted
-     */
-    void enableRepeater(byte maxHop=0);
-
-    /**
-     * SWAP status packet received. Callaback function
-     */
-    void (*statusReceived)(SWPACKET *status);
-
     /**
      * SPAXSTACK
      *
@@ -174,7 +87,7 @@ class SPAXSTACK
     /**
      * init
      * 
-     * Initialize commstack board
+     * Initialize commstack 
      */
     void init(void);
 
@@ -184,110 +97,6 @@ class SPAXSTACK
      * Reset commstack
      */
     void reset(void);
-
-    /**
-     * sleepWd
-     * 
-     * Put commstack into Power-down state during "time".
-     * This function uses the internal watchdog timer in order to exit (interrupt)
-     * from the power-doen state
-     * 
-     * 'time'	Sleeping time:
-     *  WDTO_15MS  = 15 ms
-     *  WDTO_30MS  = 30 ms
-     *  WDTO_60MS  = 60 ms
-     *  WDTO_120MS  = 120 ms
-     *  WDTO_250MS  = 250 ms
-     *  WDTO_500MS  = 500 ms
-     *  WDTO_1S = 1 s
-     *  WDTO_2S = 2 s
-     *  WDTO_4S = 4 s
-     *  WDTO_8S = 8 s
-     */
-    void sleepWd(byte time);
-
-    /**
-     * sleepRtc
-     * 
-     * Put commstack into Power-down state during "time".
-     * This function uses Timer 2 connected to an external 32.768KHz crystal
-     * in order to exit (interrupt) from the power-down state
-     * 
-     * 'time'	Sleeping time:
-     *  RTC_250MS  = 250 ms
-     *  RTC_500MS  = 500 ms
-     *  RTC_1S = 1 s
-     *  RTC_2S = 2 s
-     *  RTC_8S = 8 s
-     */
-    void sleepRtc(byte time);
-
-    /**
-     * wakeUp
-     *
-     * Wake from sleep mode
-     *
-     * 'rxOn' Enter RX_ON state after waking up
-     */
-    void wakeUp(bool rxOn=true);
-
-    /**
-     * goToSleep
-     *
-     * Sleep whilst in power-down mode. This function currently uses sleepWd in a loop
-     *
-     */
-    void enterSleepWithRadioOff(void);
-
-
-    /**
-     * getAddress
-     * 
-     * Sends a broadcast request for a device address. When addr is received, sets it and enables cc1101 packet filtering
-     * 
-     */
-    bool getAddress(void);
-
-    /**
-     * getInternalTemp
-     * 
-     * Read internal (ATMEGA328 only) temperature sensor
-     * Reference: http://playground.arduino.cc/Main/InternalTemperatureSensor
-     * 
-     * Return:
-     * 	Temperature in degrees Celsius
-     */
-    long getInternalTemp(void);
-
-    /**
-     * setTxInterval
-     * 
-     * Set interval for periodic transmissions
-     * 
-     * 'interval'	New periodic interval. 0 for asynchronous devices
-     * 'save'     If TRUE, save parameter in EEPROM
-     */
-    void setTxInterval(byte* interval, bool save);
-
-    /**
-     * sendAck
-     * 
-     * Sends a confirmation of packet reception
-     * 
-     */
-
-    void sendAck(void);
-
-    /**
-     * getCapabilities
-     * 
-     * Sends the module capabilities 
-     *  
-     * 
-     */
-    void getCapabilities(void);
-    
-    bool waitState(cor_state* cs);
 };
 
 /**

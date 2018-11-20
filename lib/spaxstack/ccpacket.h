@@ -41,16 +41,17 @@
 class CCPACKET
 {
   public:
-    void copy(const CCPACKET &p2); 
-    char* getHumanReadableError();
+    void copy(CCPACKET* source);
+    //void copy(const CCPACKET &p2); 
+    
     /**
      * ERROR flag
      */
-    byte errorCode;
+    uint8_t errorCode;
     /**
      * Data length
      */
-    byte length;
+    uint8_t length;
 
     /**
      * Data buffer, 2 more bytes for RSSI and CRC, 
@@ -61,12 +62,12 @@ class CCPACKET
     /**
      * Received Strength Signal Indication
      */
-    byte rssi;
+    uint8_t rssi;
 
     /**
      * Link Quality Index
      */
-    byte lqi;
+    uint8_t lqi;
 
 };
 

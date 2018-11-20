@@ -37,10 +37,10 @@
 SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len) 
 {
   destAddr = SWAP_BCAST_ADDR;
-  srcAddr = commstack.cc1101.devAddress;
+  srcAddr = MASTER_ADDRESS;
   hop = 0;
   function = SWAPFUNCT_STA;
-  regAddr = commstack.cc1101.devAddress;
+  regAddr = MASTER_ADDRESS;
   regId = registerId;
   value.length = len;
   value.data = val;
@@ -58,7 +58,7 @@ SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len)
 SWACK::SWACK(byte dAddr)
 {
   destAddr = dAddr;
-  srcAddr = commstack.cc1101.devAddress;
+  srcAddr = MASTER_ADDRESS;
   hop = 0;
   function = SWAPFUNCT_ACK;
 }
