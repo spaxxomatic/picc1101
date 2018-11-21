@@ -56,7 +56,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../types.h"
-
+#include "memory.h"
 
 
 #include "pi_cc_spi.h"
@@ -284,7 +284,7 @@ int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *data)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte **buffer, uint8_t count)
+int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte* buffer, uint8_t count)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t i;
@@ -306,7 +306,7 @@ int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte **buffer, u
         return 1;
     }
 
-    *buffer = &spi_parms->rx[1];
+    memcpy(buffer, &spi_parms->rx, count);
     return 0;
 }
 

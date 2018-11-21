@@ -22,13 +22,13 @@
 #include "lib/mqtt/mosquitto.h"
 #include "lib/radio/radio.h"
 
-const char* inifile = "spaxmatic.ini";
+const char* inifile = "spaxxserver.ini";
 INIReader* inireader ;
 
 struct mosquitto *mosq = NULL;
 void server_shutdown(); 
 // === Public functions ===========================================================================
-void die(char* msg){
+void die(const char* msg){
   fprintf(stderr, "%s\n", msg);
   server_shutdown();
   exit(1);
@@ -57,7 +57,7 @@ void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
 	int i;
 	if(!result){
 		/* Subscribe to broker information topics on successful connect. */
-		mosquitto_subscribe(mosq, NULL, "$SYS/#", 2);
+		mosquitto_subscribe(mosq, NULL, "CCRADIO/#", 1);
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -88,7 +88,7 @@ void server_shutdown(){
 
 void readIniFile(){
       //read ini file
-    if (inireader == nullptr){
+    if (inireader == NULL){
       inireader = new INIReader(inifile);
       if (inireader->ParseError() < 0) {
           fprintf(stderr, "%s missing or corrupt\n", inifile);

@@ -1,5 +1,5 @@
 /******************************************************************************/
-/* PiCC1101  - Radio serial link using CC1101 module and Raspberry-Pi         */
+/* PiCC1101  - Radio serial link using CC1101 module and Orange-Pi         */
 /*                                                                            */
 /* Radio link definitions                                                     */
 /*                                                                            */
@@ -17,8 +17,12 @@
 #include "../spaxstack/swpacket.h"
 #include "../spaxstack/spaxstack.h"
 
-#define WPI_GDO0 5 // For Wiring Pi, 5 is GPIO_24 connected to GDO0
-#define WPI_GDO2 6 // For Wiring Pi, 6 is GPIO_25 connected to GDO2
+#define WPI_GDO0 25 // For Orange Pi, 5 is GPIO_24 connected to GDO0
+#define WPI_GDO2 24 // For Orange Pi, 6 is GPIO_25 connected to GDO2
+
+//For Raspberry PI
+//#define WPI_GDO0 5 // For Orange Pi, 5 is GPIO_24 connected to GDO0
+//#define WPI_GDO2 4 // For Orange Pi, 6 is GPIO_25 connected to GDO2
 
 #define TX_FIFO_REFILL 60 // With the default FIFO thresholds selected this is the number of bytes to refill the Tx FIFO
 #define RX_FIFO_UNLOAD 59 // With the default FIFO thresholds selected this is the number of bytes to unload from the Rx FIFO
@@ -112,9 +116,7 @@ typedef volatile struct radio_int_data_s
     uint8_t      last_error;
 } radio_int_data_t;
 
-
-static radio_int_data_t *p_radio_int_data = 0;
-static radio_int_data_t radio_int_data;
+volatile static radio_int_data_t radio_int_data;
 
 volatile static int packets_sent = 0;
 volatile static int packets_received = 0;
@@ -141,8 +143,8 @@ float    radio_get_byte_time(radio_parms_t *radio_parms);
 void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
-static bool     tx_handler(spi_parms_t *spi_parms);
-static uint8_t  radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc);
+bool     tx_handler(spi_parms_t *spi_parms);
+uint8_t  radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc);
 
 //void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
 //uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);

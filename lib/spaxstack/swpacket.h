@@ -61,7 +61,7 @@ struct SWDATA
     /**
      * Data buffer
      */
-    byte *data;
+    volatile byte *data;
 
     /**
      * Data length
