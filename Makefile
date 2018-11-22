@@ -17,12 +17,14 @@ clean:
 prepare:
 	$(MD) -p out
 
-spaxxserver_mock: main.o wiringpi_mock.o pi_cc_spi.o radio.o server.o util.o swpacket.o ccpacket.o test.o register.o inireader.o spaxstack.o
-	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver ini.o util.o inireader.o main.o wiringpi_mock.o pi_cc_spi.o radio.o server.o test.o spaxstack.o ccpacket.o -lm -lmosquitto -lrt 
+spaxxserver_mock: main.o wiringpi_mock.o pi_cc_spi_mock.o radio.o server.o util.o swpacket.o ccpacket.o test.o register.o inireader.o spaxstack.o
+	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver swpacket.o ini.o util.o inireader.o main.o wiringpi.o pi_cc_spi.o radio.o server.o test.o spaxstack.o ccpacket.o \
+	-lm -lmosquitto -lrt -lpthread
 	cp out/spaxxserver .
 
 spaxxserver: main.o pi_cc_spi.o radio.o server.o util.o test.o register.o ccpacket.o swpacket.o inireader.o spaxstack.o
-	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver swpacket.o ini.o inireader.o main.o pi_cc_spi.o radio.o server.o test.o spaxstack.o util.o ccpacket.o -lm -lmosquitto -lrt -lwiringPi -lwiringPiDev 
+	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver swpacket.o ini.o inireader.o main.o pi_cc_spi.o radio.o server.o test.o spaxstack.o util.o ccpacket.o \
+	-lm -lmosquitto -lrt -lwiringPi -lwiringPiDev 
 	cp out/spaxxserver .
 
 main.o: lib/radio/params.h main.cpp
@@ -60,5 +62,9 @@ inireader.o: lib/inih/inireader.h lib/inih/inireader.cpp
 	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/ini.o lib/inih/ini.c
 
 ###Mocks:
-wiringpi_mock.o: mocks/wiringpi_mock.c	
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/wiringpi_mock.o mocks/wiringpi_mock.c
+wiringpi_mock.o: mocks/wiringpi.c	
+	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/wiringpi.o mocks/wiringpi.c
+
+pi_cc_spi_mock.o: lib/radio/params.h lib/radio/pi_cc_spi.h mocks/pi_cc_spi.cpp
+	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o mocks/pi_cc_spi.cpp
+
