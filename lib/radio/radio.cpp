@@ -3,7 +3,7 @@
 /*                                                                            */
 /* Radio link interface                                                       */
 /*                                                                            */
-/*                      (c) Edouard Griffiths, F4EXB, 2015                    */
+/*                      (c) Lucian Nutiu, Edouard Griffiths, F4EXB, 2015                    */
 /*                                                                            */
 /******************************************************************************/
 
@@ -109,49 +109,6 @@ static uint8_t  crc_check(uint8_t *block);
 
 // === Interupt handlers ==========================================================================
 
-// ------------------------------------------------------------------------------------------------
-// Processes packets up to 255 bytes
-/* nutiu remove after port
-byte receiveData(CCPACKET * packet)
-{
-  byte val;
-  byte rxBytes;
-  // = readStatusReg(CC1101_RXBYTES);
-  PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count);
-  // Any byte waiting to be read and no overflow?
-  if (rxBytes & 0x7F && !(rxBytes & 0x80))
-  {
-    // Read data length
-    PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &x_byte);
-    packet->length = readConfigReg(CC1101_RXFIFO);
-    // If packet is too long
-    if (packet->length > CC1101_DATA_LEN)
-      packet->length = 0;   // Discard packet
-    else
-    {
-      // Read data packet
-      readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
-      // Read RSSI
-      packet->rssi = readConfigReg(CC1101_RXFIFO);
-      // Read LQI and CRC_OK
-      val = readConfigReg(CC1101_RXFIFO);
-      packet->lqi = val & 0x7F;
-      packet->crc_ok = bitRead(val, 7);
-    }
-  }
-  else
-    packet->length = 0;
-
-  setIdleState();       // Enter IDLE state
-  flushRxFifo();        // Flush Rx FIFO
-  //cmdStrobe(CC1101_SCAL);
-
-  // Back to RX state
-  setRxState();
-
-  return packet->length;
-}
-*/
 void irq_handle_packet(void){
     // the irq handler will read data from the radio chip and transfer it to the p_radio_int_data->rx_buff beginning from the pos 1
     // The pos 0 (first byte) in the buffer will contain the error code. 
@@ -189,15 +146,7 @@ void irq_handle_packet(void){
                     bool crc_ok = bitRead(packet.lqi, 7);
                     packet.lqi = packet.lqi& 0x7F;
                     
-int i;
-for (i = 0; i < packet.length+2 ; i++)
-{
-    if (i > 0) printf(":");
-    printf("%02X", packet.data[i]);    
-}                    
-printf("rssi %02X", packet.rssi);  
-printf("lqi %02X", packet.lqi);  
-printf("\n");
+
                     if (! crc_ok){
                         verbprintf(3, "CRC err \n");
                         packet.errorCode = RADIOERR_PACKET_CRC_ERR; 
@@ -237,7 +186,6 @@ printf("\n");
     sem_post(&sem);
 }
 // === Static functions ===========================================================================
-
 // ------------------------------------------------------------------------------------------------
 // Calculate RSSI in dBm from decimal RSSI read out of RSSI status register
 float rssi_dbm(uint8_t rssi_dec)
@@ -397,7 +345,9 @@ bool wait_for_state(spi_parms_t *spi_parms, ccxxx0_state_t state, uint32_t timeo
     {
         PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_MARCSTATE, &fsm_state);
         fsm_state &= 0x1F;
-
+#ifdef _MOCKED //when mocked
+        break;
+#endif
         if (fsm_state == (uint8_t) state)
         {
             break;
@@ -434,15 +384,7 @@ void init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments)
     radio_int_data.wait_us = 8000000 / rate_values[arguments->rate]; // approximately 2-FSK byte delay
     radio_int_data.mode = RADIOMODE_RX;
     wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet);       // set interrupt handler for packet interrupts
-    
     //wiringPiISR(WPI_GDO0, INT_EDGE_FALLING, &irq_handle_packet);       // set interrupt handler for packet interrupts
-
-    /*if (arguments->packet_length >= PI_CCxxx0_FIFO_SIZE)
-    {
-        wiringPiISR(WPI_GDO2, INT_EDGE_BOTH, &int_threshold); // set interrupt handler for FIFO threshold interrupts
-    }
-    */
-
     verbprintf(1, "Unit delay .............: %d us\n", radio_int_data.wait_us);
     verbprintf(1, "Packet delay ...........: %d us\n", arguments->packet_delay * radio_int_data.wait_us);
 }

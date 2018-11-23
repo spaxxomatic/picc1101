@@ -30,7 +30,8 @@
  */
 #define CC1101_BUFFER_LEN        64
 #define CC1101_DATA_LEN          CC1101_BUFFER_LEN - 3
-
+#include <string> 
+using namespace std; 
 
 /**
  * Class: CCPACKET
@@ -68,6 +69,8 @@ class CCPACKET
      * Link Quality Index
      */
     uint8_t lqi;
+
+    void dataAsHex(string buff);
 
 };
 

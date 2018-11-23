@@ -1,73 +1,57 @@
 ECHO := echo
 MD := mkdir
-RM := rm
+RM := rm -f
 
-EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4
+EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4 -MMD
 
-all: prepare spaxxserver 
+all: build 
+
+SRC =  main.cpp lib/inih/ini.c mqtt.cpp lib/spaxstack/register.cpp lib/spaxstack/spaxstack.cpp \
+ lib/spaxstack/swstatus.cpp lib/spaxstack/swpacket.cpp lib/spaxstack/ccpacket.cpp lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
+ server.cpp test.cpp util.c lib/inih/inireader.cpp 
 
 mock: EXTRA_CFLAGS+=-D_MOCKED
-mock: prepare spaxxserver_mock
+mock: MOCK_SRC = mocks/wiringpi.c
 
-SRC =  main.cpp lib/spaxstack/register.cpp lib/spaxstack/spaxstack.cpp lib/spaxstack/ccpacket.cpp lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp server.cpp test.cpp util.c lib/inih/inireader.cpp
-OBJ = $(SRC:.c=.o) 
+mock: list_obj build
+
+#OBJ_DIR := out
+
+#OBJ := $(patsubst $(SRC)/%.cpp,$(OBJ_DIR)/%.o,$(SRC))
+#OBJ += $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRC))
+list_obj: 
+	@echo $(OBJ) 
+
+OBJ_C = $(SRC:.c=.o) 
+OBJ = $(OBJ_C:.cpp=.o)
+DEP = $(OBJ:.o=.d)
+#OBJ += $(SRC:.cpp=.o) 
+CC := g++
 clean:
-	rm -rf out 
+	$(RM) $(OBJ) $(DEP)
+	$(RM) spaxxserver 
+	$(RM) $(MOCK_SRC:.c=.o)
 	 
 prepare:
 	$(MD) -p out
 
-spaxxserver_mock: main.o mqtt.o wiringpi_mock.o pi_cc_spi_mock.o radio.o server.o util.o swpacket.o ccpacket.o test.o register.o inireader.o spaxstack.o
-	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver swpacket.o mqtt.o ini.o util.o inireader.o main.o wiringpi.o pi_cc_spi.o radio.o server.o test.o spaxstack.o ccpacket.o \
-	-lm -lmosquitto -lrt -lpthread
-	cp out/spaxxserver .
+build: gccversion prepare $(SRC) $(MOCK_SRC) $(OBJ) link
 
-spaxxserver: main.o mqtt.o pi_cc_spi.o radio.o server.o util.o test.o register.o ccpacket.o swpacket.o inireader.o spaxstack.o
-	cd out; $(CCPREFIX)g++ $(LDFLAGS) -s -o spaxxserver swpacket.o mqtt.o ini.o inireader.o main.o pi_cc_spi.o radio.o server.o test.o spaxstack.o util.o ccpacket.o \
-	-lm -lmosquitto -lrt -lwiringPi -lwiringPiDev -lpthread
-	cp out/spaxxserver .
+link:
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(OBJ) -lm -lmosquitto -lrt -lpthread
 
-main.o: lib/radio/params.h main.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/main.o main.cpp
+gccversion : 
+	$(CC) --version
+	
+%.o : %.c
+	echo "Compiling $< with extra flags $(EXTRA_CFLAGS)" 
+	$(CC) -c $(CFLAGS) $(EXTRA_CFLAGS) -c $< -o $@ 
 
-register.o: lib/spaxstack/register.h lib/spaxstack/register.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/register.o lib/spaxstack/register.cpp
+%.o : %.cpp
+	@echo "Compiling $<"
+	$(CC) -c $(CFLAGS) $(EXTRA_CFLAGS) -c $< -o $@ 
 
-spaxstack.o: lib/spaxstack/spaxstack.h lib/spaxstack/spaxstack.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/spaxstack.o lib/spaxstack/spaxstack.cpp
-
-ccpacket.o: lib/spaxstack/ccpacket.h lib/spaxstack/ccpacket.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/ccpacket.o lib/spaxstack/ccpacket.cpp
-
-swpacket.o: lib/spaxstack/swpacket.h lib/spaxstack/swpacket.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/swpacket.o lib/spaxstack/swpacket.cpp
-
-pi_cc_spi.o: lib/radio/params.h lib/radio/pi_cc_spi.h lib/radio/pi_cc_spi.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o lib/radio/pi_cc_spi.cpp
-
-radio.o: lib/radio/params.h lib/radio/radio.h lib/radio/radio.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/radio.o lib/radio/radio.cpp
-
-server.o: lib/radio/params.h server.h server.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/server.o server.cpp
-
-test.o: test.h test.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/test.o test.cpp
-
-util.o: util.h util.c
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/util.o util.c
-
-mqtt.o: mqtt.h mqtt.c
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/mqtt.o mqtt.c
-
-inireader.o: lib/inih/inireader.h lib/inih/inireader.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/inireader.o lib/inih/inireader.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/ini.o lib/inih/ini.c
-
-###Mocks:
-wiringpi_mock.o: mocks/wiringpi.c	
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/wiringpi.o mocks/wiringpi.c
-
-pi_cc_spi_mock.o: lib/radio/params.h lib/radio/pi_cc_spi.h mocks/pi_cc_spi.cpp
-	$(CCPREFIX)g++ $(CFLAGS) $(EXTRA_CFLAGS) -c -o out/pi_cc_spi.o mocks/pi_cc_spi.cpp
-
+#spaxxserver_mock: main.o mqtt.o wiringpi_mock.o pi_cc_spi_mock.o radio.o server.o util.o swpacket.o ccpacket.o test.o register.o inireader.o spaxstack.o
+#	cd out; $(CC) $(LDFLAGS) -s -o spaxxserver swpacket.o mqtt.o ini.o util.o inireader.o main.o wiringpi.o pi_cc_spi.o radio.o server.o test.o spaxstack.o ccpacket.o \
+#	-lm -lmosquitto -lrt -lpthread
+#	cp out/spaxxserver .

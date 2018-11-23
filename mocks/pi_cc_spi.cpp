@@ -89,7 +89,7 @@ int spi_write(int fd, int addr, spi_ioc_transfer* value){
 int PI_CC_SPIWriteReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t value)
 // ------------------------------------------------------------------------------------------------
 {
-    printf("%02X\n",value);
+    printf("SPI WR: %02X ->%02X\n",addr, value);
     spi_parms->tx[0] = addr;
     spi_parms->tx[1] = value;
     spi_parms->tr.len = 2;
@@ -195,7 +195,10 @@ int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status)
         fprintf(stderr, "SPI: can't send read status register\n");
         return 1;
     }
-
+    if (addr == PI_CCxxx0_MARCSTATE) {
+        *status = 0x13;
+        return 0;
+    }
     *status = spi_parms->rx[1];
     return 0;
 }

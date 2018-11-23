@@ -313,9 +313,7 @@ int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte* buffer, ui
 // ------------------------------------------------------------------------------------------------
 // For status/strobe addresses, the BURST bit selects between status registers
 // and command strobes.
-int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status)
-// ------------------------------------------------------------------------------------------------
-{
+int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status){
     spi_parms->tx[0] = addr | PI_CCxxx0_READ_BURST;   // Send address
     spi_parms->tx[1] = 0; // Dummy write so we can read data
     spi_parms->tr.len = 2;
@@ -332,10 +330,7 @@ int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status)
     return 0;
 }
 
-// ------------------------------------------------------------------------------------------------
-int PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe)
-// ------------------------------------------------------------------------------------------------
-{
+int PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe){
     spi_parms->tx[0] = strobe;   // Send strobe
     spi_parms->tr.len = 1;
 
@@ -350,11 +345,7 @@ int PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe)
     return 0;
 }
 
-
-// ------------------------------------------------------------------------------------------------
-int PI_CC_PowerupResetCCxxxx(spi_parms_t *spi_parms)
-// ------------------------------------------------------------------------------------------------
-{
+int PI_CC_PowerupResetCCxxxx(spi_parms_t *spi_parms){
     return PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SRES);
 }
 
