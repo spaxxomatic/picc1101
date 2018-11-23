@@ -138,6 +138,7 @@ class SWPACKET : public CCPACKET
      *  False otherwise
      */
     CCPACKET prepare(void);
+    char* asString(char* buffer);
 };
 
 #endif

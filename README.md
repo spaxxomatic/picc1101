@@ -99,11 +99,7 @@ You can use option -T of the program to get an even lower priority of -2 for a s
 
 ## Program options
  <pre><code>
-  -B, --tnc-serial-speed=SERIAL_SPEED
-                             TNC Serial speed in Bauds (default : 9600)
   -d, --spi-device=SPI_DEVICE   SPI device, (default : /dev/spidev0.0)
-  -D, --tnc-serial-device=SERIAL_DEVICE
-                             TNC Serial device, (default : /var/ax25/axp2)
   -f, --frequency=FREQUENCY_HZ   Frequency in Hz (default: 433600000)
   -F, --fec                  Activate FEC (default off)
   -H, --long-help            Print a long help and exit

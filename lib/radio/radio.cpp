@@ -26,6 +26,7 @@
 #include "cc1101_defvals.h"
 #include "pi_cc_cc1101.h"
 
+sem_t sem; //semaphore for thread sync
 //static radio_int_data_t *p_radio_int_data = 0;
 
 const char *state_names[] = {
@@ -177,14 +178,17 @@ void irq_handle_packet(void){
                 if (rxDataLength > CC1101_DATA_LEN){
                     packet.errorCode = RADIOERR_PACKET_TOO_LONG;
                 }else{
-                    // Read data packet
-                    //readBurstReg(packet->data, CC1101_RXFIFO, packet->length);
                     //read the net data
                     packet.length = rxDataLength;
                     PI_CC_SPIReadBurstReg(radio_int_data.spi_parms, PI_CCxxx0_RXFIFO, packet.data, packet.length);
+                    //the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is LQI/CRC
+                    // Read RSSI
                     PI_CC_SPIReadReg(radio_int_data.spi_parms, PI_CCxxx0_RXFIFO, &packet.rssi); 
+                    // Read LQI and CRC_OK
                     PI_CC_SPIReadReg(radio_int_data.spi_parms, PI_CCxxx0_RXFIFO, &packet.lqi); 
-                    //packet.lqi = PI_CC_SPIReadReg(packet.data[packet.length+1] & 0x7F;
+                    bool crc_ok = bitRead(packet.lqi, 7);
+                    packet.lqi = packet.lqi& 0x7F;
+                    
 int i;
 for (i = 0; i < packet.length+2 ; i++)
 {
@@ -194,14 +198,6 @@ for (i = 0; i < packet.length+2 ; i++)
 printf("rssi %02X", packet.rssi);  
 printf("lqi %02X", packet.lqi);  
 printf("\n");
-                    //the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is LQI/CRC
-                    // Read RSSI
-                    //packet.rssi = readConfigReg(CC1101_RXFIFO);
-                    // Read LQI and CRC_OK
-                    //val = readConfigReg(CC1101_RXFIFO);
-                    //packet.rssi = packet.data[packet.length]; //first byte after data 
-                    //packet.lqi = packet.data[packet.length+1] & 0x7F;
-                    bool crc_ok = bitRead(packet.lqi, 7);
                     if (! crc_ok){
                         verbprintf(3, "CRC err \n");
                         packet.errorCode = RADIOERR_PACKET_CRC_ERR; 
@@ -222,93 +218,24 @@ printf("\n");
         }else{
             verbprintf(3, "GDO0 Rx Falling \n");
         }              
-    }
-
-}
-
-//nutiu remove
-/*
-void irq_handle_packet_old(void)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t x_byte, *p_byte, int_line, rssi_dec, crc_lqi;
-    int i;
-
-    int_line = digitalRead(WPI_GDO0); // Sense interrupt line to determine if it was a raising or falling edge
-
-    if (p_radio_int_data->mode == RADIOMODE_RX)
-    {
-        if (int_line)
-        {
-            verbprintf(3, "GDO0 Rx rising edge (%d,%d)\n", 
-                p_radio_int_data->packet_receive, 
-                p_radio_int_data->packet_send);
-
-            p_radio_int_data->byte_index = 0;
-            radio_wait_a_bit(2);
-
-            PI_CC_SPIReadReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &x_byte);
-            //nutiu - implement CCPACKET
-            p_radio_int_data->rx_buf[p_radio_int_data->byte_index++] = x_byte; // put back into resulting payoad
-            p_radio_int_data->rx_count = x_byte + 2; // Add RSSI + LQI/CRC bytes
-            p_radio_int_data->bytes_remaining = p_radio_int_data->rx_count;
-            p_radio_int_data->rx_count++; // Add count for the resulting total buffer length
-                
-            verbprintf(3, "%d bytes to read (variable)\n", p_radio_int_data->rx_count);                
-            p_radio_int_data->packet_receive = 1; // reception is in progress
-        }
-        else
-        {
-            verbprintf(3, "GDO0 Rx falling edge (%d,%d): %d bytes remaining\n", 
-                p_radio_int_data->packet_receive, 
-                p_radio_int_data->packet_send, 
-                p_radio_int_data->bytes_remaining);
-
-            if (p_radio_int_data->packet_receive) // packet has been received
-            {
-                PI_CC_SPIReadBurstReg(p_radio_int_data->spi_parms, PI_CCxxx0_RXFIFO, &p_byte, p_radio_int_data->bytes_remaining);
-                memcpy((uint8_t *) &(p_radio_int_data->rx_buf[p_radio_int_data->byte_index]), p_byte, p_radio_int_data->bytes_remaining);
-                p_radio_int_data->byte_index += p_radio_int_data->bytes_remaining;
-                p_radio_int_data->bytes_remaining = 0;
-
-                radio_int_data.mode = RADIOMODE_NONE;
-                p_radio_int_data->packet_receive = 0; // reception is done
-                p_radio_int_data->packet_rx_count++;
-            }            
-        }        
-    }    
-    else if (p_radio_int_data->mode == RADIOMODE_TX)
-    {
-        if (int_line)
-        {
-            verbprintf(3, "GDO0 Tx rising edge (%d,%d)\n", 
-                p_radio_int_data->packet_receive, 
-                p_radio_int_data->packet_send);
-            p_radio_int_data->packet_send = 1; // Assert packet transmission after sync has been sent
-        }
-        else
-        {
-            verbprintf(3, "GDO0 Tx falling edge (%d,%d)\n", 
-                p_radio_int_data->packet_receive, 
-                p_radio_int_data->packet_send);
-            if (p_radio_int_data->packet_send) // packet has been sent
+    } else if (radio_int_data.mode == RADIOMODE_TX) {
+        if (int_line){
+            verbprintf(3, "GDO0 Tx Rising \n");
+            radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
+        }else{
+            verbprintf(3, "GDO0 Tx Falling \n");
+            if (radio_int_data.packet_send) // packet has been sent
             {
                 radio_int_data.mode = RADIOMODE_NONE;
-                p_radio_int_data->packet_send = 0; // De-assert packet transmission after packet has been sent
-                p_radio_int_data->packet_tx_count++;
-                verbprintf(3, "Sent packet #%d. Remaining bytes to send: %d\n", p_radio_int_data->packet_tx_count, p_radio_int_data->bytes_remaining);
-
-                if ((verbose_level > 0) && (p_radio_int_data->bytes_remaining))
-                {
-                    verbprintf(0, "RADIO: anomalous condition detected on GDO0 Tx falling edge\n");
-                    print_radio_status(p_radio_int_data->spi_parms);
-                    radio_flush_fifos(p_radio_int_data->spi_parms);
-                }
+                radio_int_data.packet_send = 0; // De-assert packet transmission after packet has been sent
+                //print_radio_status(radio_int_data.spi_parms);
+                //radio_flush_fifos(radio_int_data.spi_parms);
             }
         }
     }
+    //increment semaphore
+    sem_post(&sem);
 }
-*/
 // === Static functions ===========================================================================
 
 // ------------------------------------------------------------------------------------------------
@@ -558,7 +485,6 @@ void init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments)
     radio_parms->chanspc_m     = 0;                // Do not use channel spacing for the moment defaulting to 0
     radio_parms->chanspc_e     = 0;                // Do not use channel spacing for the moment defaulting to 0
     radio_parms->modulation    = (radio_modulation_t) arguments->modulation;
-    radio_parms->fec           = arguments->fec;
 }
 
 
@@ -726,7 +652,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bits 6:4: xxx -> (provided)
     // o bit 3:    0   -> Manchester disabled (1: enable)
     // o bits 2:0: 011 -> Sync word qualifier is 30/32 (static init in radio interface)
-    reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
+    //reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG2,  CC1101_DEFVAL_MDMCFG2); // Modem configuration.
 
     // MODCFG1 Modem configuration: FEC, Preamble, exponent for channel spacing
@@ -734,7 +660,7 @@ int init_radio(radio_parms_t *radio_parms, spi_parms_t *spi_parms, arguments_t *
     // o bits 6:4: 2   -> number of preamble bytes (0:2, 1:3, 2:4, 3:6, 4:8, 5:12, 6:16, 7:24)
     // o bits 3:2: unused
     // o bits 1:0: CHANSPC_E: exponent of channel spacing (here: 2)
-    reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
+    //reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
     PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_MDMCFG1,  CC1101_DEFVAL_MDMCFG1); // Modem configuration.
 
     // MODCFG0 Modem configuration: CHANSPC_M: mantissa of channel spacing following this formula:
@@ -1089,11 +1015,6 @@ float radio_get_byte_time(radio_parms_t *radio_parms)
         base_time /= 2.0;
     }
 
-    if (radio_parms->fec)
-    {
-        base_time *= 2.0;
-    }
-
     return base_time;
 }
 
@@ -1180,6 +1101,9 @@ uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, ui
 uint8_t radio_process_packet(){
     if (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
         SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx++]);
+        char buff[512];
+        printf("RCV: Processing packet: %s", swPacket.asString(buff));
+        
         switch(swPacket.function)
         {
             case SWAPFUNCT_ACK:
@@ -1219,7 +1143,9 @@ uint8_t radio_process_packet(){
             default:
               break;
         } 
+        return 1;
     }
+    return 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1229,9 +1155,6 @@ bool tx_handler(spi_parms_t *spi_parms)
 {
     int i, ret;
     radio_int_data.packet_send = 0;
-    if (radio_process_packet()){
-        return false;
-    };
     //look if there is anything to be sent in the tx buff
     if (radio_int_data.tx_buff_idx == radio_int_data.tx_buff_idx_ins){ //nothing added to the buff, return
         return true;

@@ -97,8 +97,6 @@ static struct argp_option options[] = {
     {"test-phrase",  'y', "TEST_PHRASE", 0, "Set a test phrase to be used in test (default : \"Hello, World!\")"},
     {"repetition",  'n', "REPETITION", 0, "Repetiton factor wherever appropriate, see long Help (-H) option (default : 1 single)"},
     {"radio-status",  's', 0, 0, "Print radio status and exit"},
-    {"tnc-serial-device",  'D', "SERIAL_DEVICE", 0, "TNC Serial device, (default : /var/ax25/axp2)"},
-    {"tnc-serial-speed",  'B', "SERIAL_SPEED", 0, "TNC Serial speed in Bauds (default : 9600)"},
     {0}
 };
 
@@ -155,9 +153,6 @@ static void init_args(arguments_t *arguments)
 {
     arguments->verbose_level = 0;
     arguments->print_long_help = 0;
-    arguments->serial_device = 0;
-    arguments->serial_speed = B38400;
-    arguments->serial_speed_n = 38400;
     arguments->spi_device = 0;
     arguments->print_radio_status = 0;
     arguments->modulation = MOD_FSK2;
@@ -169,7 +164,6 @@ static void init_args(arguments_t *arguments)
     arguments->test_mode = TEST_NONE;
     arguments->test_phrase = strdup("Hello, World!");
     arguments->repetition = 1;
-    arguments->fec = 0;
     arguments->whitening = 0;
     arguments->preamble = PREAMBLE_4;
     arguments->tnc_serial_window = 40000;
@@ -185,10 +179,6 @@ static void init_args(arguments_t *arguments)
 void delete_args(arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
-    if (arguments->serial_device)
-    {
-        free(arguments->serial_device);
-    }
     if (arguments->spi_device)
     {
         free(arguments->spi_device);
@@ -215,7 +205,6 @@ static void print_args(arguments_t *arguments)
     fprintf(stderr, "Modulation index ....: %.2f\n", arguments->modulation_index);
     fprintf(stderr, "Frequency ...........: %d Hz\n", arguments->freq_hz);
     fprintf(stderr, "Preamble size .......: %d bytes\n", nb_preamble_bytes[arguments->preamble]);
-    fprintf(stderr, "FEC .................: %s\n", (arguments->fec ? "on" : "off"));
     fprintf(stderr, "Whitening ...........: %s\n", (arguments->whitening ? "on" : "off"));
     fprintf(stderr, "SPI device ..........: %s\n", arguments->spi_device);
 
@@ -225,10 +214,6 @@ static void print_args(arguments_t *arguments)
         fprintf(stderr, "Test phrase .........: %s\n", arguments->test_phrase);
         fprintf(stderr, "Test repetition .....: %d times\n", arguments->repetition);
     }
-
-    fprintf(stderr, "--- serial ---\n");
-    fprintf(stderr, "TNC device ..........: %s\n", arguments->serial_device);
-    fprintf(stderr, "TNC speed ...........: %d Baud\n", arguments->serial_speed_n);
 
     fprintf(stderr, "TNC switch delay ....: %.2f ms\n", arguments->tnc_switchover_delay / 1000.0);
 }
@@ -300,10 +285,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         // Print long help and exit
         case 'H':
             arguments->print_long_help = 1;
-            break;
-        // Activate FEC
-        case 'F':
-            arguments->fec = 1;
             break;
         // Activate whitening
         case 'W':
@@ -470,10 +451,6 @@ int main (int argc, char **argv)
         return 0;
     }
     
-    if (!arguments.serial_device)
-    {
-        arguments.serial_device = strdup("/var/ax25/axp2");
-    }
     if (!arguments.spi_device)
     {
         arguments.spi_device = strdup("/dev/spidev0.0");

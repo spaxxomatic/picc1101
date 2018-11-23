@@ -187,19 +187,7 @@ int radio_transmit_test(spi_parms_t *spi_parms, arguments_t *arguments)
         payload_fec /= 2;
     }
 
-    if (arguments->fec) // twice the payload delay if FEC is engaged
-    {
-        tx_delay = (8000000ULL * (nb_preamble_bytes[arguments->preamble] + 4 + 2*payload_fec + 8)) / rate_values[arguments->rate];
-    }
-    else
-    {
-        tx_delay = (8000000ULL * (nb_preamble_bytes[arguments->preamble] + 4 + payload_fec + 8)) / rate_values[arguments->rate];   
-    }
-
-    if (tx_delay < 100000ULL) // set a minimum wait time of 100ms
-    {
-        tx_delay = 100000ULL;
-    }
+    tx_delay = 100000ULL; // set a minimum wait time of 100ms
 
     verbprintf(1, "Estimated Tx delay is %lld us\n", tx_delay);
 

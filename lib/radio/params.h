@@ -71,10 +71,6 @@ extern uint8_t nb_preamble_bytes[];
 typedef struct arguments_s {
     uint8_t      verbose_level;        // Verbose level
     uint8_t      print_long_help;      // Print a long help and exit
-    // --- serial link virtual TNC --  -
-    char         *serial_device;       // TNC serial device
-    speed_t      serial_speed;         // TNC serial speed (Baud)
-    uint32_t     serial_speed_n;       // TNC serial speed as a number
     // --- spi link radio ---
     char         *spi_device;          // CC1101 SPI device
     uint8_t      print_radio_status;   // Print radio status and exit
@@ -87,7 +83,6 @@ typedef struct arguments_s {
     char         *test_phrase;         // Test phrase to transmit
     uint8_t      test_rx;              // Reception test. Exits after receiving number of repetition packets
     uint8_t      repetition;           // Repetition factor
-    uint8_t      fec;                  // Activate FEC
     uint8_t      whitening;            // Activate whitening
     preamble_t   preamble;             // Preamblescheme (number of preamble bytes)
     uint32_t     packet_delay;         // Delay before sending packet on serial or radio in 4 2-FSK symbols approximately

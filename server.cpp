@@ -19,13 +19,13 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "lib/mqtt/mosquitto.h"
-#include "lib/radio/radio.h"
+#include <signal.h>
+#include "mqtt.h"
 
 const char* inifile = "spaxxserver.ini";
 INIReader* inireader ;
+extern uint8_t radio_process_packet();
 
-struct mosquitto *mosq = NULL;
 void server_shutdown(); 
 // === Public functions ===========================================================================
 void die(const char* msg){
@@ -34,55 +34,16 @@ void die(const char* msg){
   exit(1);
 }
 
-int on_mqtt_message(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *msg)
+void sig_handler(int signo)
 {
-	printf("%s %s (%d)\n", msg->topic, (const char *)msg->payload, msg->payloadlen);
-	return 0;
-}
-// ------------------------------------------------------------------------------------------------
-// Initialize the server, read ini file, init mqtt, etc
-
-void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
-{
-	if(message->payloadlen){
-		printf("%s %s\n", message->topic, message->payload);
-	}else{
-		printf("%s (null)\n", message->topic);
-	}
-	fflush(stdout);
-}
-
-void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
-{
-	int i;
-	if(!result){
-		/* Subscribe to broker information topics on successful connect. */
-		mosquitto_subscribe(mosq, NULL, "CCRADIO/#", 1);
-	}else{
-		fprintf(stderr, "Connect failed\n");
-	}
-}
-
-void on_subscribe_callback(struct mosquitto *mosq, void *userdata, int mid, int qos_count, const int *granted_qos)
-{
-	int i;
-	verbprintf(2, "Subscribed (mid: %d): %d", mid, granted_qos[0]);
-	for(i=1; i<qos_count; i++){
-		verbprintf(2, ", %d", granted_qos[i]);
-	}
-	verbprintf(2, "\n");
-}
-
-void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const char *str)
-{
-  verbprintf(4, "mqtt log: %s\n", str);
+  if (signo == SIGINT){
+    die("Received SIGINT\n");
+  }
 }
 
 void server_shutdown(){
-  mosquitto_disconnect(mosq);
-  mosquitto_loop_stop(mosq, true);
-	mosquitto_destroy(mosq);  
-  mosquitto_lib_cleanup();
+  sem_destroy(&sem);
+  mqtt_stop();
   delete inireader;
 }
 
@@ -100,30 +61,9 @@ void readIniFile(){
 
 void server_init(arguments_t *arguments)
 {
+  if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
   readIniFile();
-  mosquitto_lib_init();
-	mosq = mosquitto_new(NULL, true, NULL);
-	if(!mosq){
-		fprintf(stderr, "Error: Out of memory.\n");
-		return;
-	}
-	mosquitto_log_callback_set(mosq, on_log_callback);
-	mosquitto_connect_callback_set(mosq, on_connect_callback);
-	mosquitto_message_callback_set(mosq, on_message_callback);
-
-	int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
-      inireader->GetInteger("mqtt", "broker_port", 1833),
-      inireader->GetInteger("mqtt", "keepalive", 60)
-      )  ;
-  if( conn_ret != MOSQ_ERR_SUCCESS){
-		fprintf(stderr, "Unable to connect to mqtt broker.\n");
-		return ;
-	}
-
-	if (mosquitto_loop_start(mosq) != MOSQ_ERR_SUCCESS){
-    fprintf(stderr, "Unable to start mosquitto loop.\n");
-  };
-
+  if (!mqtt_init()) die("Mqtt failure, exiting");
 }
 
 
@@ -174,9 +114,13 @@ void server_run(spi_parms_t *spi_parms, arguments_t *arguments)
     //enable radio rx
     radio_init_rx(spi_parms); // init for new packet to receive Rx
     radio_turn_rx(spi_parms); // Turn Rx on
-
+    sem_init(&sem, 0, 0);
     //server loop
     while(1){
+        sem_wait(&sem);
+        if (radio_process_packet()){
+             mqtt_send("/CCRADIO/MSG","Got a packet");
+        };        
         tx_handler(spi_parms);
       }
 }

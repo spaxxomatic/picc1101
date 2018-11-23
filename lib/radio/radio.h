@@ -16,6 +16,11 @@
 #include "../spaxstack/ccpacket.h"
 #include "../spaxstack/swpacket.h"
 #include "../spaxstack/spaxstack.h"
+#include <pthread.h>
+#include <unistd.h>
+#include <semaphore.h>
+
+extern sem_t sem;
 
 #define WPI_GDO0 25 // For Orange Pi, 5 is GPIO_24 connected to GDO0
 #define WPI_GDO2 24 // For Orange Pi, 6 is GPIO_25 connected to GDO2

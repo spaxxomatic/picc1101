@@ -24,6 +24,7 @@
 
 #include "swpacket.h"
 #include "spaxstack.h"
+#include <stdio.h>
 
 /**
  * SWPACKET
@@ -86,4 +87,7 @@ CCPACKET SWPACKET::prepare(void)
 }
 
 
-
+char* SWPACKET::asString(char* buffer){
+  sprintf(buffer, "SRC: %i DEST: %i \nFUNC: %i REG: %02X REGVAL: %02X\n ", srcAddr, destAddr, function, regAddr, regId);
+  return buffer;
+}
