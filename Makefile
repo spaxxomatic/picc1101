@@ -2,18 +2,36 @@ ECHO := echo
 MD := mkdir
 RM := rm -f
 
+
 EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4 -MMD
 
-all: build 
 
-SRC =  main.cpp lib/inih/ini.c mqtt.cpp lib/spaxstack/register.cpp lib/spaxstack/spaxstack.cpp \
+SRC :=  main.cpp lib/inih/ini.c mqtt.cpp lib/spaxstack/register.cpp lib/spaxstack/spaxstack.cpp \
  lib/spaxstack/swstatus.cpp lib/spaxstack/swpacket.cpp lib/spaxstack/ccpacket.cpp lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
  server.cpp test.cpp util.c lib/inih/inireader.cpp 
 
-mock: EXTRA_CFLAGS+=-D_MOCKED
-mock: MOCK_SRC = mocks/wiringpi.c
+TARGET_DIR := out
+MOCK_FILES := $(wildcard mocks/*.cpp)
+MOCK_FILES += $(wildcard mocks/*.c)
+MOCK_OBJ := $(MOCK_FILES:.c=.o) 
+MOCK_OBJ := $(MOCK_OBJ:.cpp=.o) 
 
-mock: list_obj build
+VPATH = $(dir $(SRC)) 
+ 
+mock: EXTRA_CFLAGS+=-D_MOCKED
+mock: SRC := $(patsubst lib/radio/pi_cc_spi.cpp,,$(SRC)) 
+mock: SRC += $(MOCK_FILES)
+mock: VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC)) 
+
+FNAMES = $(notdir $(SRC)) 
+
+o1 = $(patsubst %.cpp,%.o,$(FNAMES)) 
+objnames = $(patsubst %.c,%.o,$(o1)) 
+objects = $(addprefix $(TARGET_DIR)/,$(objnames))
+
+list_objects:
+	@echo $(FNAMES)
+	@echo $(objects)
 
 #OBJ_DIR := out
 
@@ -22,36 +40,43 @@ mock: list_obj build
 list_obj: 
 	@echo $(OBJ) 
 
-OBJ_C = $(SRC:.c=.o) 
-OBJ = $(OBJ_C:.cpp=.o)
-DEP = $(OBJ:.o=.d)
+OBJ_C := $(SRC:.c=.o) 
+OBJ := $(OBJ_C:.cpp=.o)
+
+DEP = $(objects:.o=.d)
 #OBJ += $(SRC:.cpp=.o) 
 CC := g++
+
+.PHONY: prepare list_objects gccversion clean
+
 clean:
-	$(RM) $(OBJ) $(DEP)
+	$(RM)r $(TARGET_DIR)
 	$(RM) spaxxserver 
-	$(RM) $(MOCK_SRC:.c=.o)
 	 
 prepare:
-	$(MD) -p out
+	$(MD) -p $(TARGET_DIR)
 
-build: gccversion prepare $(SRC) $(MOCK_SRC) $(OBJ) link
+build: $(SRC) $(objects)  
+
+build_mock: gccversion prepare $(SRC) $(MOCK_SRC) $(objects) 
 
 link:
-	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(OBJ) -lm -lmosquitto -lrt -lpthread
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(objects) -lm -lmosquitto -lrt -lpthread -lwiringpi .lwiringpiDev
 
-gccversion : 
+link_with_mock:
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(objects) -lm -lmosquitto -lrt -lpthread
+
+gccversion: 
 	$(CC) --version
 	
-%.o : %.c
+$(TARGET_DIR)/%.o : %.c
 	echo "Compiling $< with extra flags $(EXTRA_CFLAGS)" 
 	$(CC) -c $(CFLAGS) $(EXTRA_CFLAGS) -c $< -o $@ 
 
-%.o : %.cpp
-	@echo "Compiling $<"
+$(TARGET_DIR)/%.o : %.cpp
+	@echo "Compiling with extra flags $(EXTRA_CFLAGS)$<"
 	$(CC) -c $(CFLAGS) $(EXTRA_CFLAGS) -c $< -o $@ 
 
-#spaxxserver_mock: main.o mqtt.o wiringpi_mock.o pi_cc_spi_mock.o radio.o server.o util.o swpacket.o ccpacket.o test.o register.o inireader.o spaxstack.o
-#	cd out; $(CC) $(LDFLAGS) -s -o spaxxserver swpacket.o mqtt.o ini.o util.o inireader.o main.o wiringpi.o pi_cc_spi.o radio.o server.o test.o spaxstack.o ccpacket.o \
-#	-lm -lmosquitto -lrt -lpthread
-#	cp out/spaxxserver .
+mock: gccversion prepare build link_with_mock
+
+all: gccversion prepare build link
