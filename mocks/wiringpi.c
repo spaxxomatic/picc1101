@@ -246,7 +246,7 @@ int wiringPiISR (int pin, int mode, void (*function)(void))
   }
 
   isrFunctions [pin] = function ;
-
+  
   pthread_mutex_lock (&pinMutex) ;
     pinPass = pin ;
     pthread_create (&threadId, NULL, interruptHandler, NULL) ;

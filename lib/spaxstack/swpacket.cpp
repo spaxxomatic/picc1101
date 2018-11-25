@@ -26,10 +26,32 @@
 #include "spaxstack.h"
 #include <stdio.h>
 
+
 /**
  * SWPACKET
  * 
- * Class constructor
+ * Class constructor for transmission
+ * 
+ * 'packet'	Raw CC1101 packet
+ */
+/*
+SWPACKET::SWPACKET(byte destAddr, byte function, byte regId, SWDATA data ) 
+{
+  this->destAddr = destAddr;
+  this->srcAddr = MASTER_ADDRESS;
+  this->hop = 0;
+  this->packetNo = 0;
+  this->function = function;
+  this->regAddr = packet->data[5];
+  regId = packet->data[6];
+  value.data = packet->data + 7;
+  value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
+}
+*/
+/**
+ * SWPACKET
+ * 
+ * Class constructor from CCPACKET, used for reception
  * 
  * 'packet'	Raw CC1101 packet
  */

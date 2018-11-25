@@ -11,7 +11,7 @@
 #include "lib/radio/pi_cc_spi.h"
 #include "lib/inih/inireader.h"
 
-void server_run(spi_parms_t *spi_parms, arguments_t *arguments);
+void server_run( arguments_t *arguments);
 void server_init(arguments_t *arguments);
 void die(char* msg);
 void readIniFile();

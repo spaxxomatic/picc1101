@@ -20,7 +20,7 @@
 #include <unistd.h>
 #include <semaphore.h>
 
-extern sem_t sem;
+extern sem_t sem_radio_irq;
 
 #define WPI_GDO0 25 // For Orange Pi, 5 is GPIO_24 connected to GDO0
 #define WPI_GDO2 24 // For Orange Pi, 6 is GPIO_25 connected to GDO2
@@ -108,11 +108,10 @@ typedef enum radio_mode_e
 
 typedef volatile struct radio_int_data_s 
 {
-    spi_parms_t  *spi_parms;             // SPI link parameters
     radio_mode_t mode;                   // Radio mode (essentially Rx or Tx)
     uint8_t      tx_count;               // Number of bytes in Tx buffer
     uint8_t      rx_count;               // Number of bytes in Rx buffer
-    uint8_t      tx_buff_idx;        //Index of the last packet tramsitted in the tx buffer
+    uint8_t      tx_buff_idx_sent;        //Index of the last packet tramsitted in the tx buffer
     uint8_t      tx_buff_idx_ins;        //Index of the last packet inserted in the tx buffer
     uint8_t      rx_buff_idx;             // Index of the next packet to insert in buffer
     uint8_t      rx_buff_read_idx;        // Read side - Index of the next packet to read from the buffer
@@ -130,28 +129,29 @@ extern const char     *state_names[];
 extern float    chanbw_limits[];
 
 void     init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments);
-int      init_radio(radio_parms_t *radio_parms,  spi_parms_t *spi_parms, arguments_t *arguments);
-void     init_radio_int(spi_parms_t *spi_parms, arguments_t *arguments);
-void     radio_init_rx(spi_parms_t *spi_parms);
-void     radio_flush_fifos(spi_parms_t *spi_parms);
+int      init_radio(radio_parms_t *radio_parms,  arguments_t *arguments);
+void     init_radio_int(arguments_t *arguments);
+void     radio_init_rx();
+void     radio_flush_fifos();
 
-void     radio_turn_idle(spi_parms_t *spi_parms);
-void     radio_turn_rx(spi_parms_t *spi_parms);
+void     radio_turn_idle();
+void     radio_turn_rx();
 
 void     print_radio_parms(radio_parms_t *radio_parms);
-int      print_radio_status(spi_parms_t *spi_parms);
+int      print_radio_status();
 
-int      radio_set_packet_length(spi_parms_t *spi_parms, uint8_t pkt_len);
-uint8_t  radio_get_packet_length(spi_parms_t *spi_parms);
+int      radio_set_packet_length( uint8_t pkt_len);
+uint8_t  radio_get_packet_length();
 float    radio_get_rate(radio_parms_t *radio_parms);
 float    radio_get_byte_time(radio_parms_t *radio_parms);
 void     radio_wait_a_bit(uint32_t amount);
 void     radio_wait_free();
 
-bool     tx_handler(spi_parms_t *spi_parms);
+bool     tx_handler();
+bool    send_packet(CCPACKET* p_packet);
 uint8_t  radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc);
 
-//void     radio_send_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet, uint32_t size);
-//uint32_t radio_receive_packet(spi_parms_t *spi_parms, arguments_t *arguments, uint8_t *packet);
+//void     radio_send_packet( arguments_t *arguments, uint8_t *packet, uint32_t size);
+//uint32_t radio_receive_packet( arguments_t *arguments, uint8_t *packet);
 
 #endif

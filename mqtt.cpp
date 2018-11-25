@@ -1,60 +1,69 @@
 #include "mqtt.h"
+
 #include <stdio.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <string>
 #include <regex>
 #include <stdlib.h>
 #include "util.h"
 #include "lib/inih/inireader.h"
 
+#include "lib/spaxstack/spaxstack.h"
+
 extern INIReader* inireader ;
 extern void die(const char* msg);
-
+extern bool transmit_packet(CCPACKET* p_packet);
 struct mosquitto *mosq = NULL;
 
-std::string subscribe_actors_topic="";
-std::string subscribe_config_topic="";
-std::string subscribe_radionodes_descr_topic="";
-std::string client_name="";
-std::string publish_to="";
+static std::string subscribe_actors_topic;
+static std::string subscribe_config_topic;
+static std::string subscribe_radionodes_descr_topic;
+static std::string client_name;
+static std::string publish_to;
 // ------------------------------------------------------------------------------------------------
 // Initialize the server, read ini file, init mqtt, etc
-std::string get_actor_id_from_topic(char* topic){
-    std::regex e (subscribe_actors_topic + "\/(.*)");   // matches words beginning by "sub"
+std::string get_actor_id_from_topic(std::string &prefix, char* topic){
+    std::regex e (prefix + "(.*)");   // matches words beginning by "sub"
     std::string actor_id = std::regex_replace (topic,e,"$1");
+    //printf("actor id %s", actor_id.c_str());
     return actor_id;
 }
 
-void handle_actor_message(std::string actor_id, const mosquitto_message *message){
-    printf("handle_actor_message %s %s", actor_id, (char*) message->payload );
+void handle_actor_message(std::string actor_id, std::string payload){
+    printf("handle_actor_message %s %s\n", actor_id.c_str(), payload.c_str() );
+    byte destAddr = 01;
+    byte registerId = 02;
+    SWCOMMAND command = SWCOMMAND(destAddr, MASTER_ADDRESS, registerId, (byte*) payload.c_str(), (byte) payload.length());
+    transmit_packet(&command);
+    };
+
+void handle_radionodes_descr(std::string actor_id, std::string payload){
+    printf("handle_radionodes_descr %s %s\n", actor_id.c_str(), payload.c_str() );
 };
 
-void handle_radionodes_descr(std::string actor_id, const mosquitto_message *message){
-    printf("handle_radionodes_descr %s %s", actor_id, (char*) message->payload );
-};
-
-void handle_config_message(std::string actor_id, const mosquitto_message *message){
-    printf("handle_config_message %s %s", actor_id, (char*) message->payload );
+void handle_config_message(std::string actor_id, std::string payload){
+    printf("handle_config_message %s %s\n", actor_id.c_str(), payload.c_str() );
 };
 
 void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
-    if(message->payloadlen){
-		verbprintf(3,"%s %s\n", message->topic, (char*) message->payload);
-	}else{
-		verbprintf(3,"%s (null)\n", message->topic);
-	}    
-    std::string topic = std::string(message->topic);
-    if (topic.compare(0,subscribe_actors_topic.length(), subscribe_actors_topic)){
+    verbprintf(3,"Msg: Thread id %i\n",getpid());    
+	std::string payload =std::string((char*) message->payload, message->payloadlen);
+ 	verbprintf(3,"Topic: %s Payload: %s\n", message->topic, payload.c_str());
+	std::string topic = std::string(message->topic);
+    if (topic.compare(0,subscribe_actors_topic.length(), subscribe_actors_topic)==0){
         //actor message incoming, needs to be routed to the corresponding device
-        handle_actor_message(get_actor_id_from_topic(message->topic), message);
+        handle_actor_message(get_actor_id_from_topic(subscribe_actors_topic,message->topic), payload);
         return;
-    }else if (topic.compare(0,subscribe_config_topic.length(), subscribe_config_topic))
+    }else if (topic.compare(0,subscribe_config_topic.length(), subscribe_config_topic)==0)
     {
-        handle_config_message(get_actor_id_from_topic(message->topic), message);
+        handle_config_message(get_actor_id_from_topic(subscribe_config_topic,message->topic), payload);
         return;
-    }else if (topic.compare(0,subscribe_radionodes_descr_topic.length(), subscribe_radionodes_descr_topic))
+    }else if (topic.compare(0,subscribe_radionodes_descr_topic.length(), subscribe_radionodes_descr_topic)==0)
     {
-        handle_radionodes_descr(get_actor_id_from_topic(message->topic), message);
+        handle_radionodes_descr(get_actor_id_from_topic(subscribe_radionodes_descr_topic,message->topic), payload);
         return;
     };
 }
@@ -62,17 +71,18 @@ void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mo
 void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
 {
 	int i;
+    verbprintf(3,"Connect: Thread id %i\n",getpid());    
+	
 	if(!result){
-printf("%s %s %s  \n",(subscribe_actors_topic+"#").data(), subscribe_config_topic.data(), subscribe_radionodes_descr_topic.data() );
-            
-		/* Subscribe to broker information topics on successful connect. */
-		const char* t1 = (subscribe_actors_topic + std::string("#")).data();
-        const char* t2 = (subscribe_config_topic + std::string("#")).data();
-        const char* t3 = (subscribe_radionodes_descr_topic + std::string("#")).data();
-        printf("Subscribing to %s %s %s \n",t1, t2, t3);
+        /* Subscribe to broker information topics on successful connect. */
+         char* t1 = strdup((subscribe_actors_topic + "#").c_str());
+         char* t2 = strdup((subscribe_config_topic + "#").c_str());
+         char* t3 = strdup((subscribe_radionodes_descr_topic + "#").c_str());
+        verbprintf(3,"Subscribing to %s %s %s \n",t1, t2, t3);
         mosquitto_subscribe(mosq, NULL, t1, 1);
         mosquitto_subscribe(mosq, NULL, t2, 1);
         mosquitto_subscribe(mosq, NULL, t3, 2);
+        free(t1); free(t2); free(t3);
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -102,7 +112,7 @@ void mqtt_stop(){
 
 #define UNDEF "UNDEF"
 bool mqtt_init(){
-    mosquitto_lib_init();
+    verbprintf(3,"MQTT Init: Thread id %i\n",getpid());    
 	subscribe_actors_topic.assign(inireader->Get("mqtt","subscribe_actors_topic", UNDEF));
     if(subscribe_actors_topic == UNDEF){
         die("Missing subscribe_actors_topic in mqtt section of ini file");
@@ -116,6 +126,8 @@ bool mqtt_init(){
         die("Missing subscribe_radionodes_descr_topic in mqtt section of ini file");
     }    
     client_name = inireader->Get("mqtt","subscribe_radionodes_descr_topic", "SPAXXSERVER");    
+    mosquitto_lib_init();
+
     mosq = mosquitto_new(NULL, true, NULL);
     if(!mosq){
         fprintf(stderr, "Error: Out of memory.\n");

@@ -108,9 +108,10 @@
 //  to the strobe at address "addr".
 //------------------------------------------------------------------------------
 
+spi_parms_t *spi_parms = &spi_parameters;
 // ------------------------------------------------------------------------------------------------
 // Initialize defauklt parameters
-void PI_CC_SPIParmsDefaults(spi_parms_t *spi_parms)
+void PI_CC_SPIParmsDefaults()
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->mode             = 0;
@@ -140,7 +141,7 @@ void PI_CC_Wait(unsigned int cycles)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPISetup(spi_parms_t *spi_parms, arguments_t *arguments)
+int PI_CC_SPISetup( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->ret = 0;
@@ -219,7 +220,7 @@ int PI_CC_SPISetup(spi_parms_t *spi_parms, arguments_t *arguments)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIWriteReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t value)
+int PI_CC_SPIWriteReg( uint8_t addr, uint8_t value)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->tx[0] = addr;
@@ -238,7 +239,7 @@ int PI_CC_SPIWriteReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t value)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIWriteBurstReg(spi_parms_t *spi_parms, uint8_t addr, const uint8_t *buffer, uint8_t count)
+int PI_CC_SPIWriteBurstReg( uint8_t addr, const uint8_t *buffer, uint8_t count)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t i;
@@ -264,7 +265,7 @@ int PI_CC_SPIWriteBurstReg(spi_parms_t *spi_parms, uint8_t addr, const uint8_t *
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *data)
+int PI_CC_SPIReadReg( uint8_t addr, uint8_t *data)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->tx[0] = addr | PI_CCxxx0_READ_SINGLE; // Send address
@@ -284,7 +285,7 @@ int PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *data)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte* buffer, uint8_t count)
+int PI_CC_SPIReadBurstReg( uint8_t addr, byte* buffer, uint8_t count)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t i;
@@ -313,7 +314,7 @@ int PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte* buffer, ui
 // ------------------------------------------------------------------------------------------------
 // For status/strobe addresses, the BURST bit selects between status registers
 // and command strobes.
-int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status){
+int PI_CC_SPIReadStatus( uint8_t addr, uint8_t *status){
     spi_parms->tx[0] = addr | PI_CCxxx0_READ_BURST;   // Send address
     spi_parms->tx[1] = 0; // Dummy write so we can read data
     spi_parms->tr.len = 2;
@@ -330,7 +331,7 @@ int PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status){
     return 0;
 }
 
-int PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe){
+int PI_CC_SPIStrobe( uint8_t strobe){
     spi_parms->tx[0] = strobe;   // Send strobe
     spi_parms->tr.len = 1;
 
@@ -345,7 +346,7 @@ int PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe){
     return 0;
 }
 
-int PI_CC_PowerupResetCCxxxx(spi_parms_t *spi_parms){
+int PI_CC_PowerupResetCCxxxx(){
     return PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SRES);
 }
 

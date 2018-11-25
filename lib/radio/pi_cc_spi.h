@@ -80,15 +80,17 @@ typedef struct spi_parms_s
     byte  rx[65]; // max 1 status byte + 64 bytes FIFO
 } spi_parms_t;
 
-void PI_CC_SPIParmsDefaults(spi_parms_t *spi_parms);
+static spi_parms_t spi_parameters;
+
+void PI_CC_SPIParmsDefaults();
 void PI_CC_Wait(unsigned int);
-int  PI_CC_SPISetup(spi_parms_t *spi_parms, arguments_t *arguments);
-int  PI_CC_SPIWriteReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t byte);
-int  PI_CC_SPIWriteBurstReg(spi_parms_t *spi_parms, uint8_t addr, const uint8_t *bytes, uint8_t count);
-int  PI_CC_SPIReadReg(spi_parms_t *spi_parms, uint8_t addr, uint8_t *data);
-int  PI_CC_SPIReadBurstReg(spi_parms_t *spi_parms, uint8_t addr, byte *data, uint8_t count);
-int  PI_CC_SPIReadStatus(spi_parms_t *spi_parms, uint8_t addr, uint8_t *status);
-int  PI_CC_SPIStrobe(spi_parms_t *spi_parms, uint8_t strobe);
-int  PI_CC_PowerupResetCCxxxx(spi_parms_t *spi_parms);
+int  PI_CC_SPISetup(arguments_t *arguments);
+int  PI_CC_SPIWriteReg(uint8_t addr, uint8_t byte);
+int  PI_CC_SPIWriteBurstReg(uint8_t addr, const uint8_t *bytes, uint8_t count);
+int  PI_CC_SPIReadReg(uint8_t addr, uint8_t *data);
+int  PI_CC_SPIReadBurstReg(uint8_t addr, byte *data, uint8_t count);
+int  PI_CC_SPIReadStatus(uint8_t addr, uint8_t *status);
+int  PI_CC_SPIStrobe(uint8_t strobe);
+int  PI_CC_PowerupResetCCxxxx();
 
 #endif

@@ -42,7 +42,7 @@ void sig_handler(int signo)
 }
 
 void server_shutdown(){
-  sem_destroy(&sem);
+  sem_destroy(&sem_radio_irq);
   mqtt_stop();
   delete inireader;
 }
@@ -97,30 +97,30 @@ uint8_t server_command(uint8_t *block)
 
 // ------------------------------------------------------------------------------------------------
 // Run the server 
-void server_run(spi_parms_t *spi_parms, arguments_t *arguments)
+void server_run(arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     uint32_t timeout_value;
     uint64_t timestamp;
     struct timeval tp;  
 
-    init_radio_int(spi_parms, arguments);
-    radio_flush_fifos(spi_parms);
+    init_radio_int(arguments);
+    radio_flush_fifos();
     
     verbprintf(1, "Starting...\n");
     server_init(arguments);
     //connect to mqtt broker
 
     //enable radio rx
-    radio_init_rx(spi_parms); // init for new packet to receive Rx
-    radio_turn_rx(spi_parms); // Turn Rx on
-    sem_init(&sem, 0, 0);
+    radio_init_rx(); // init for new packet to receive Rx
+    radio_turn_rx(); // Turn Rx on
+    sem_init(&sem_radio_irq, 0, 0);
     //server loop
     while(1){
-        sem_wait(&sem);
+        sem_wait(&sem_radio_irq); //waiting for radio data in this thread
         if (radio_process_packet()){
              mqtt_send("/CCRADIO/MSG","Got a packet");
         };        
-        tx_handler(spi_parms);
+        tx_handler();
       }
 }

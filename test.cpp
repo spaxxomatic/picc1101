@@ -21,39 +21,39 @@
 
 // ------------------------------------------------------------------------------------------------
 // Transmission test with interrupt handling
-int radio_transmit_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
+int radio_transmit_test_int( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
-    init_radio_int(spi_parms, arguments);
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFTX); // Flush Tx FIFO
+    init_radio_int( arguments);
+    PI_CC_SPIStrobe( PI_CCxxx0_SFTX); // Flush Tx FIFO
     
     verbprintf(0, "Sending %d test packets of size %d\n", arguments->repetition, PI_CCxxx0_FIFO_SIZE);
 
     while(packets_sent < arguments->repetition)
     {
         radio_wait_free(); // make sure no radio operation is in progress
-        //nutiu fixme radio_send_packet(spi_parms, arguments, arguments->test_phrase, strlen(arguments->test_phrase));
+        //nutiu fixme radio_send_packet( arguments, arguments->test_phrase, strlen(arguments->test_phrase));
         radio_wait_a_bit(10);
     } 
 }
 
 // ------------------------------------------------------------------------------------------------
 // Reception test with interrupt handling
-int radio_receive_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
+int radio_receive_test_int( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t nb_rx, rx_bytes[RADIO_BUFSIZE];
 
-    init_radio_int(spi_parms, arguments);
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFRX); // Flush Rx FIFO
+    init_radio_int( arguments);
+    PI_CC_SPIStrobe( PI_CCxxx0_SFRX); // Flush Rx FIFO
 
     verbprintf(0, "Starting...\n");
     uint8_t block; uint32_t size; 
     uint8_t crc;
     while((arguments->repetition == 0) || (packets_received < arguments->repetition))
     {
-        radio_init_rx(spi_parms); // Init for new packet to receive
-        radio_turn_rx(spi_parms);            // Put back into Rx
+        radio_init_rx(); // Init for new packet to receive
+        radio_turn_rx();            // Put back into Rx
 
         do
         {
@@ -70,7 +70,7 @@ int radio_receive_test_int(spi_parms_t *spi_parms, arguments_t *arguments)
 
 // ------------------------------------------------------------------------------------------------
 // Simple echo test
-void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, arguments_t *arguments, uint8_t active)
+void radio_test_echo( radio_parms_t *radio_parms, arguments_t *arguments, uint8_t active)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t  nb_bytes;
@@ -79,8 +79,8 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
     uint32_t timeout_value, timeout;
     struct timeval tdelay, tstart, tstop;
 
-    init_radio_int(spi_parms, arguments);
-    radio_flush_fifos(spi_parms);
+    init_radio_int( arguments);
+    radio_flush_fifos();
 
     timeout_value = (uint32_t) (PI_CCxxx0_FIFO_SIZE * 10 * radio_get_byte_time(radio_parms));
     timeout = 0;
@@ -112,7 +112,7 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
                 verbprintf(0, "Sending #%d\n", packets_sent);
 
                 radio_wait_free(); // make sure no radio operation is in progress
-                //nutiu fixme radio_send_packet(spi_parms, arguments, rtx_bytes, nb_bytes);
+                //nutiu fixme radio_send_packet( arguments, rtx_bytes, nb_bytes);
                 radio_wait_a_bit(4);
                 timeout = timeout_value; // arm Rx timeout
                 rtx_count++;
@@ -133,8 +133,8 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
             {
                 verbprintf(0, "Receiving #%d\n", packets_received);
 
-                radio_init_rx(spi_parms); // Init for new packet to receive
-                radio_turn_rx(spi_parms);            // Put back into Rx
+                radio_init_rx(); // Init for new packet to receive
+                radio_turn_rx();            // Put back into Rx
 
                 if (timeout > 0)
                 {
@@ -144,7 +144,7 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
                 do
                 {
                     radio_wait_free(); // make sure no radio operation is in progress
-                    //nutiu fixme nb_bytes = radio_receive_packet(spi_parms, arguments, rtx_bytes);
+                    //nutiu fixme nb_bytes = radio_receive_packet( arguments, rtx_bytes);
                     radio_wait_a_bit(4);
 
                     if (timeout > 0)
@@ -171,69 +171,10 @@ void radio_test_echo(spi_parms_t *spi_parms, radio_parms_t *radio_parms, argumen
     }    
 }
 
-// ------------------------------------------------------------------------------------------------
-// Transmission test with polling of registers
-int radio_transmit_test(spi_parms_t *spi_parms, arguments_t *arguments)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t  test_length, tx_length, byte;
-    uint8_t  tx_buf[PI_CCxxx0_FIFO_SIZE];
-    int      i, j, ret;
-    uint32_t payload_fec = 4 + PI_CCxxx0_FIFO_SIZE; // Number of bytes that can be protected by FEC
-    uint64_t tx_delay; // Delay in microseconds for message transmission. Take 8 bytes guard interval. 
-
-    if (arguments->modulation == MOD_FSK4)
-    {
-        payload_fec /= 2;
-    }
-
-    tx_delay = 100000ULL; // set a minimum wait time of 100ms
-
-    verbprintf(1, "Estimated Tx delay is %lld us\n", tx_delay);
-
-    if (strlen(arguments->test_phrase) < PI_CCxxx0_FIFO_SIZE)
-    {
-        test_length = strlen(arguments->test_phrase);
-    }
-    else
-    {
-        verbprintf(0, "Test phrase too long. Truncated to CC1101 FIFO size\n");
-        test_length = PI_CCxxx0_FIFO_SIZE;
-    }
-
-    memset(tx_buf, ' ', PI_CCxxx0_FIFO_SIZE);
-    memcpy(tx_buf, arguments->test_phrase, test_length);
-
-        tx_length = test_length;
-
-    radio_set_packet_length(spi_parms, tx_length);
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x02); // GDO2 output pin config TX mode
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFTX);
-
-    verbprintf(0, "Sending test packet of size %d %d times\n", tx_length, arguments->repetition);
-
-    for (i=0; i<arguments->repetition; i++)
-    {
-        verbprintf(0, "Packet #%d\n", i);
-
-        for (j=0; j<tx_length; j++)
-        {
-            PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_TXFIFO, tx_buf[j]);
-            verbprintf(2, "%02X ", spi_parms->rx[0]);
-        }
-
-        verbprintf(2, "\n");
-        ret = PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_STX);
-        
-        usleep(tx_delay);
-
-        print_radio_status(spi_parms);
-    }
-}
 
 // ------------------------------------------------------------------------------------------------
 // Reception test with polling of registers
-int radio_receive_test(spi_parms_t *spi_parms, arguments_t *arguments)
+int radio_receive_test( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     uint8_t iterations, rx_bytes, fsm_state, rssi_dec, crc_lqi, x_byte, pkt_on;
@@ -242,13 +183,13 @@ int radio_receive_test(spi_parms_t *spi_parms, arguments_t *arguments)
     int i;
     uint32_t poll_us = 4*8000000 / rate_values[arguments->rate]; // 4 2-FSK symbols delay
 
-    PI_CC_SPIWriteReg(spi_parms, PI_CCxxx0_IOCFG2,   0x00); // GDO2 output pin config RX mode
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SFRX);
-    PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SRX);
+    PI_CC_SPIWriteReg( PI_CCxxx0_IOCFG2,   0x00); // GDO2 output pin config RX mode
+    PI_CC_SPIStrobe( PI_CCxxx0_SFRX);
+    PI_CC_SPIStrobe( PI_CCxxx0_SRX);
 
     while(1)
     {
-        PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_MARCSTATE, &fsm_state);
+        PI_CC_SPIReadStatus( PI_CCxxx0_MARCSTATE, &fsm_state);
         fsm_state &= 0x1F;
 
         if (fsm_state == CCxxx0_STATE_RX)
@@ -259,7 +200,7 @@ int radio_receive_test(spi_parms_t *spi_parms, arguments_t *arguments)
         usleep(1000);
     }
 
-    print_radio_status(spi_parms);
+    print_radio_status();
 
     for (iterations=0; iterations<arguments->repetition; iterations++)
     {
@@ -269,7 +210,7 @@ int radio_receive_test(spi_parms_t *spi_parms, arguments_t *arguments)
 
         while(1)
         {
-            PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_PKTSTATUS, &x_byte); // sense GDO0 (& 0x01)
+            PI_CC_SPIReadStatus( PI_CCxxx0_PKTSTATUS, &x_byte); // sense GDO0 (& 0x01)
 
             if (x_byte & 0x01)
             {
@@ -278,13 +219,13 @@ int radio_receive_test(spi_parms_t *spi_parms, arguments_t *arguments)
 
             if (!(x_byte & 0x01) && pkt_on) // packet received
             {
-                PI_CC_SPIReadStatus(spi_parms, PI_CCxxx0_RXBYTES, &rx_count);
+                PI_CC_SPIReadStatus( PI_CCxxx0_RXBYTES, &rx_count);
                 rx_count &= PI_CCxxx0_NUM_RXBYTES;
                 verbprintf(1, "Received %d bytes\n", rx_count);
 
                 for (i=0; i<rx_count; i++)
                 {
-                    PI_CC_SPIReadReg(spi_parms, PI_CCxxx0_RXFIFO, &(rx_buf[i]));
+                    PI_CC_SPIReadReg( PI_CCxxx0_RXFIFO, &(rx_buf[i]));
                 }
 
                 print_block(0, rx_buf, rx_count);

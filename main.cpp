@@ -19,7 +19,6 @@
 #include "test.h"
 
 arguments_t   arguments;
-spi_parms_t   spi_parameters;
 radio_parms_t radio_parameters;
 
 using namespace std;
@@ -459,7 +458,7 @@ int main (int argc, char **argv)
     print_args(&arguments);
 
     init_radio_parms(&radio_parameters, &arguments);
-    ret = init_radio(&radio_parameters, &spi_parameters, &arguments);
+    ret = init_radio(&radio_parameters, &arguments);
 
     if (ret != 0)
     {
@@ -471,36 +470,31 @@ int main (int argc, char **argv)
     if (arguments.print_radio_status)
     {
         fprintf(stderr, "\n--- Radio state ---\n");
-        print_radio_status(&spi_parameters);
-    }
-    else if (arguments.test_mode == TEST_TX_SIMPLE)
-    {
-        radio_transmit_test(&spi_parameters, &arguments);
+        print_radio_status();
     }
     else if (arguments.test_mode == TEST_TX_INTERRUPT)
     {
-        radio_transmit_test_int(&spi_parameters, &arguments);
+        radio_transmit_test_int( &arguments);
     }
     else if (arguments.test_mode == TEST_RX_SIMPLE)
     {
-        radio_receive_test(&spi_parameters, &arguments);
+        radio_receive_test( &arguments);
     }
     else if (arguments.test_mode == TEST_RX_INTERRUPT)
     {
-        radio_receive_test_int(&spi_parameters, &arguments);
+        radio_receive_test_int( &arguments);
     }
     else if (arguments.test_mode == TEST_TX_ECHO)
     {
-        radio_test_echo(&spi_parameters, &radio_parameters, &arguments, 1);
+        radio_test_echo( &radio_parameters, &arguments, 1);
     }
     else if (arguments.test_mode == TEST_RX_ECHO)
     {
-        radio_test_echo(&spi_parameters, &radio_parameters, &arguments, 0);
+        radio_test_echo( &radio_parameters, &arguments, 0);
     }
     else
     {
-        server_init(&arguments);
-        server_run(&spi_parameters, &arguments);    
+        server_run( &arguments);    
     }
 
     delete_args(&arguments);

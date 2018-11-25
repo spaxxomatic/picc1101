@@ -29,6 +29,8 @@
 #include "register.h"
 #include "swpacket.h"
 #include "swquery.h"
+#include "swcommand.h"
+#include "swstatus.h"
 #include "config.h"
 
 #define BROADCAST_ADDRESS 0X00

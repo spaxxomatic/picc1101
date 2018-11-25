@@ -27,8 +27,8 @@
 #include "debug.h"
 #include "stddef.h"
 
-#define SYNCWORD1        0xB5    // Synchronization word, high byte
-#define SYNCWORD0        0x47    // Synchronization word, low byte
+//#define SYNCWORD1        0xB5    // Synchronization word, high byte
+//#define SYNCWORD0        0x47    // Synchronization word, low byte
 
 /**
  * Array of registers

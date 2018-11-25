@@ -36,14 +36,14 @@
  * '*val'	    New value
  * 'len'	    Buffer length
  */
-SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte rId, byte *val, byte len)
+SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte *val, byte len)
 {
   destAddr = dAddr;
   srcAddr = MASTER_ADDRESS;
   hop = 0;
   function = SWAPFUNCT_CMD;
   regAddr = rAddr;
-  regId = rId;
+  regId = registerId;
   value.data = val;
   value.length = len;
 }
