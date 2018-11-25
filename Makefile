@@ -34,8 +34,6 @@ list_objects:
 list_obj: 
 	@echo $(OBJ) 
 
-#OBJ_C := $(SRC:.c=.o) #replace .c with .o
-#OBJ := $(OBJ_C:.cpp=.o) #replace .cpp with .o
 DEP = $(OBJ:.o=.d)
 
 CC := g++

@@ -89,8 +89,7 @@ static void setupCheck (const char *fName)
 {
   if (!wiringPiSetuped)
   {
-    fprintf (stderr, "%s: You have not called one of the wiringPiSetup\n"
-	"  functions, so I'm aborting your program before it crashes anyway.\n", fName) ;
+    fprintf (stderr, "You have not called one of the wiringPiSetup functions\n") ;
     exit (EXIT_FAILURE) ;
   }
 }
