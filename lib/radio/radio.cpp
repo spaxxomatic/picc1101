@@ -366,7 +366,8 @@ bool wait_for_state( ccxxx0_state_t state, uint32_t timeout)
             PI_CC_SPIStrobe( PI_CCxxx0_SFRX); // Flush Rx FIFO
             PI_CC_SPIStrobe( PI_CCxxx0_SFTX); // Flush Tx FIFO
         }
-    }    
+    }   
+return true; 
 }
 
 // === Public functions ===========================================================================

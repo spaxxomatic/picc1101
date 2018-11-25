@@ -347,6 +347,6 @@ int PI_CC_SPIStrobe( uint8_t strobe){
 }
 
 int PI_CC_PowerupResetCCxxxx(){
-    return PI_CC_SPIStrobe(spi_parms, PI_CCxxx0_SRES);
+    return PI_CC_SPIStrobe(PI_CCxxx0_SRES);
 }
 
