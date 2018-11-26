@@ -119,6 +119,6 @@ CCPACKET SWPACKET::prepare(void)
 
 
 char* SWPACKET::asString(char* buffer){
-  sprintf(buffer, "SRC: %i DEST: %i \nFUNC: %i REG: %02X REGVAL: %02X\n ", srcAddr, destAddr, function, regAddr, regId);
+  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i\n ", destAddr, srcAddr, packetNo, function, regAddr, regId, value.length);
   return buffer;
 }

@@ -149,9 +149,5 @@ void     radio_wait_free();
 
 bool     tx_handler();
 bool    send_packet(CCPACKET* p_packet);
-uint8_t  radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc);
-
-//void     radio_send_packet( arguments_t *arguments, uint8_t *packet, uint32_t size);
-//uint32_t radio_receive_packet( arguments_t *arguments, uint8_t *packet);
 
 #endif

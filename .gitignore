@@ -1,5 +1,6 @@
 *.o
 picc1101
 .vscode
+.vs
 out
 spaxxserver
