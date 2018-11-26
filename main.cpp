@@ -25,7 +25,7 @@ using namespace std;
 
 char const *test_mode_names[] = {
     "No test",
-    "Simple Tx with polling. Packet < 64 bytes",
+    "Simple Tx with polling",
     "Simple Tx with packet interrupt handling. Packet up to 255 bytes",
     "Simple Rx with polling. Packet < 64 bytes",
     "Simple Rx with packet interrupt handling. Packet up to 255 bytes",
@@ -40,6 +40,8 @@ char const *modulation_names[] = {
     "MSK",
     "GFSK",
 };
+
+
 
 uint32_t rate_values[] = {
     50,

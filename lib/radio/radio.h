@@ -104,7 +104,7 @@ typedef enum radio_mode_e
     RADIOMODE_TX
 } radio_mode_t;
  
-#define BUFF_SIZE 64
+#define BUFF_SIZE 8
 
 typedef volatile struct radio_int_data_s 
 {

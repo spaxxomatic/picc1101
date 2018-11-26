@@ -118,10 +118,9 @@ void irq_handle_packet(void){
     uint8_t rxDataLength;
     uint8_t rxAddr;
     static CCPACKET packet;
-    
     packet.errorCode = 0;
     uint8_t int_line = digitalRead(WPI_GDO0); // Sense interrupt line to determine if it was a raising or falling edge
-    //print_radio_status(radio_int_data.);    
+        
     if (radio_int_data.mode == RADIOMODE_RX){
         if (int_line)
         {
@@ -145,8 +144,6 @@ void irq_handle_packet(void){
                     PI_CC_SPIReadReg( PI_CCxxx0_RXFIFO, &packet.lqi); 
                     bool crc_ok = bitRead(packet.lqi, 7);
                     packet.lqi = packet.lqi& 0x7F;
-                    
-
                     if (! crc_ok){
                         verbprintf(3, "CRC err \n");
                         packet.errorCode = RADIOERR_PACKET_CRC_ERR; 
@@ -156,16 +153,15 @@ void irq_handle_packet(void){
 
             rx_ccpacket_buf[radio_int_data.rx_buff_idx].errorCode = packet.errorCode;
             //copy the rest only if there are no errors
-            if (packet.errorCode == 0){
-                rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
-            }
+            rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
+            //printf("Wrote CCPACK to pos %i addr %i\n",radio_int_data.rx_buff_idx, &rx_ccpacket_buf[radio_int_data.rx_buff_idx]);
             //increment the buff counter
-            if (radio_int_data.rx_buff_idx >= BUFF_SIZE)
-                radio_int_data.rx_buff_idx = 0; //circular buffer
-            else
+            if (radio_int_data.rx_buff_idx < BUFF_SIZE - 1)
                 radio_int_data.rx_buff_idx += 1;
+            else 
+                radio_int_data.rx_buff_idx = 0; //circular buffer
         }else{
-            verbprintf(3, "GDO0 Rx Falling \n");
+            //verbprintf(3, "GDO0 Rx Falling \n");
         }              
     } else if (radio_int_data.mode == RADIOMODE_TX) {
         if (int_line){
@@ -366,7 +362,8 @@ bool wait_for_state( ccxxx0_state_t state, uint32_t timeout)
             PI_CC_SPIStrobe( PI_CCxxx0_SFRX); // Flush Rx FIFO
             PI_CC_SPIStrobe( PI_CCxxx0_SFTX); // Flush Tx FIFO
         }
-    }    
+    }   
+return true; 
 }
 
 // === Public functions ===========================================================================
@@ -377,15 +374,17 @@ void init_radio_int( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
     radio_int_data.rx_buff_idx = 0;
-    radio_int_data.tx_buff_idx_sent = 0;
     radio_int_data.rx_buff_read_idx = 0;
+    radio_int_data.tx_buff_idx_sent = 0;
     radio_int_data.tx_buff_idx_ins = 0;
     
     packets_sent = 0;
     packets_received = 0;
     radio_int_data.wait_us = 8000000 / rate_values[arguments->rate]; // approximately 2-FSK byte delay
-    radio_int_data.mode = RADIOMODE_RX;
-    wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet);       // set interrupt handler for packet interrupts
+    radio_int_data.mode = RADIOMODE_RX;    
+    if (wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet) != 0){
+        fprintf(stderr, "IRQ ISR failed\n");
+    };       // set interrupt handler for packet interrupts
     //wiringPiISR(WPI_GDO0, INT_EDGE_FALLING, &irq_handle_packet);       // set interrupt handler for packet interrupts
     verbprintf(1, "Unit delay .............: %d us\n", radio_int_data.wait_us);
     verbprintf(1, "Packet delay ...........: %d us\n", arguments->packet_delay * radio_int_data.wait_us);
@@ -997,56 +996,17 @@ void radio_init_rx()
 uint8_t radio_process_receive(uint8_t *block, uint32_t *size, uint8_t *crc){
 
 };
-/*
-uint32_t radio_receive_packet(, arguments_t *arguments, uint8_t *packet)
-{
-    uint8_t  crc, block_countdown, block_count = 0;
-    uint32_t packet_size = 0;
-
-    if (blocks_received == radio_int_data.packet_rx_count) // no block received
-    {
-        return 0;
-    }
-    else // block received
-    {
-        do
-        {
-            block_countdown = radio_receive_block(arguments, &packet[packet_size], &packet_size, &crc);
-            radio_init_rx( arguments); // init for new block to receive Rx
-
-            if (!block_count)
-            {
-                block_count = block_countdown + 1;
-            }
-
-            block_count--;
-
-            if (block_count != block_countdown)
-            {
-                verbprintf(1, "RADIO: block sequence error\n");
-                return 0;
-            }
-
-            if (!crc)
-            {
-                verbprintf(1, "RADIO: CRC error\n");
-                return 0;
-            }
-
-        } while (block_countdown > 0);
-
-        packets_received++;
-
-        return packet_size;
-    }
-}
-*/
 
 uint8_t radio_process_packet(){
-    if (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
-        SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx++]);
+    printf("rx %i rxread %i\n",radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
+    while (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx){ //packets have been received and are waiting processing
+        SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
+        if (radio_int_data.rx_buff_read_idx < BUFF_SIZE -1)
+            radio_int_data.rx_buff_read_idx+=1;
+        else 
+            radio_int_data.rx_buff_read_idx = 0;
         char buff[512];
-        printf("RCV: Processing packet: %s", swPacket.asString(buff));
+        verbprintf(3, "RCV: SW packet: %s", swPacket.asString(buff));
         
         switch(swPacket.function)
         {
@@ -1087,7 +1047,6 @@ uint8_t radio_process_packet(){
             default:
               break;
         } 
-        return 1;
     }
     return 0;
 }

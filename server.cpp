@@ -66,35 +66,6 @@ void server_init(arguments_t *arguments)
   if (!mqtt_init()) die("Mqtt failure, exiting");
 }
 
-
-uint8_t server_command(uint8_t *block)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t command_code = block[1] & 0x0F;
-    uint8_t kiss_port = (block[1] & 0xF0)>>4;
-    uint8_t command_arg = block[2];
-
-    verbprintf(4, "Command %02X %02X\n", block[1], block[2]);
-
-    switch (command_code)
-    {
-        case 0: // data block
-            return 0;
-        case 1: // TXDELAY
-            //tnc_tx_keyup_delay = command_arg * 10000; // these are tenths of ms
-            break;
-        case 2: // Persistence parameter
-            //kiss_persistence = (command_arg + 1) / 256.0;
-            break;
-        case 3: // Slot time
-            //kiss_slot_time = command_arg * 10000; // these are tenths of ms
-            break;
-        default:
-            break;
-    }
-    return 1;
-}
-
 // ------------------------------------------------------------------------------------------------
 // Run the server 
 void server_run(arguments_t *arguments)
