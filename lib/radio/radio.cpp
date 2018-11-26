@@ -125,7 +125,9 @@ void irq_handle_packet(void) {
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
 		{
-			verbprintf(3, "GDO0 Rx Rising \n");
+			verbprintf(3, "Rising IRQ\n");
+		}else{
+			verbprintf(3, "FallingIRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
 			// Any byte waiting to be read and no overflow?
 			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { //is there data to be read and no overflow?
@@ -158,9 +160,6 @@ void irq_handle_packet(void) {
 			//the copy function will copy the data only if there are no errors
 			rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
 			//printf("Wrote CCPACK to pos %i addr %i\n",radio_int_data.rx_buff_idx, &rx_ccpacket_buf[radio_int_data.rx_buff_idx]);
-		}
-		else {
-			//verbprintf(3, "GDO0 Rx Falling \n");
 		}
 	}
 	else if (radio_int_data.mode == RADIOMODE_TX) {
@@ -496,7 +495,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//         De-asserts when RX FIFO is drained below the same threshold.
 	// o 0x02: Asserts when the TX FIFO is filled at or above the TX FIFO threshold.
 	//         De-asserts when the TX FIFO is below the same threshold.
-	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config.
+	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, PI_CCxxx0_IOCFG2); // GDO2 output pin config.
 
 	// IOCFG0 = 0x06: Asserts when sync word has been sent / received, and de-asserts at the
 	// end of the packet. In RX, the pin will de-assert when the optional address
@@ -551,7 +550,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// Here 0.3046875 MHz (lowest point below 310 kHz)
 	radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
-	PI_CC_SPIWriteReg(PI_CCxxx0_FSCTRL1, 0x08); // Freq synthesizer control.
+	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_FSCTRL1, 0x08); // Freq synthesizer control.
 
 	// FREQ2..0: Base frequency for the frequency sythesizer
 	// Fo = (Fxosc / 2^16) * FREQ[23..0]
@@ -564,9 +563,14 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
 
-	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, 0x10); // Freq control word, high byte
-	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, 0xB1); // Freq control word, mid byte.
-	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, 0x86);       // Freq control word, low byte.
+	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, 0x10); // Freq control word, high byte
+	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, 0xB1); // Freq control word, mid byte.
+	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, 0x86);       // Freq control word, low byte.
+
+	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, CC1101_DEFVAL_FREQ2_433); // Freq control word, high byte
+	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, CC1101_DEFVAL_FREQ1_433); // Freq control word, mid byte.
+	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, CC1101_DEFVAL_FREQ0_433);  // Freq control word, low byte.
+
 
 	// MODCFG4 Modem configuration - bandwidth and data rate exponent
 	// High nibble: Sets the decimation ratio for the delta-sigma ADC input stream hence the channel bandwidth
@@ -578,12 +582,6 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// . bits 3:0: 13 -> DRATE_E: data rate base 2 exponent => here 13 (multiply by 8192)
 	reg_word = (radio_parms->chanbw_e << 6) + (radio_parms->chanbw_m << 4) + radio_parms->drate_e;
 	//PI_CC_SPIWriteReg( PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
-#define CC1101_DEFVAL_MDMCFG4    0xCA        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG3    0x83        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG2    0x93        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG1    0x22        // Modem Configuration
-#define CC1101_DEFVAL_MDMCFG0    0xF8        // Modem Configuration
-#define CC1101_DEFVAL_DEVIATN    0x35        // Modem Deviation Setting
 	PI_CC_SPIWriteReg(PI_CCxxx0_MDMCFG4, CC1101_DEFVAL_MDMCFG4); // Modem configuration.
 
 	// MODCFG3 Modem configuration: DRATE_M data rate mantissa as per formula:
@@ -632,7 +630,8 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	PI_CC_SPIWriteReg(PI_CCxxx0_DEVIATN, CC1101_DEFVAL_DEVIATN); // Modem dev (when FSK mod en)
 
 	// MCSM2: Main Radio State Machine. See documentation.
-	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM2, 0x00); //MainRadio Cntrl State Machine
+	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_MCSM2, 0x00); //MainRadio Cntrl State Machine
+	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM2, CC1101_DEFVAL_MCSM2); //MainRadio Cntrl State Machine
 
 	// MCSM1: Main Radio State Machine. 
 	// o bits 7:6: not used
@@ -651,7 +650,8 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   1 (01): FSTXON
 	//   2 (10): TX (stay)
 	//   3 (11): RX 
-	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM1, 0x3C); //MainRadio Cntrl State Machine
+	//PI_CC_SPIWriteReg(PI_CCxxx0_MCSM1, 0x3C); //MainRadio Cntrl State Machine
+	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM1, CC1101_DEFVAL_MCSM1); //MainRadio Cntrl State Machine
 
 	// MCSM0: Main Radio State Machine.
 	// o bits 7:6: not used
@@ -668,7 +668,9 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   3 (11): 256: Approx. 597 – 620 μs
 	// o bit 1: PIN_CTRL_EN:   Enables the pin radio control option
 	// o bit 0: XOSC_FORCE_ON: Force the XOSC to stay on in the SLEEP state.
-	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM0, 0x18); //MainRadio Cntrl State Machine
+	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_MCSM0, 0x18); //MainRadio Cntrl State Machine
+	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM0, CC1101_DEFVAL_MCSM0); //MainRadio Cntrl State Machine
+
 
 	// FOCCFG: Frequency Offset Compensation Configuration.
 	// o bits 7:6: not used
@@ -688,7 +690,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   2 (10): ±BW CHAN /4
 	//   3 (11): ±BW CHAN /2
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FOCCFG,   0x1D); // Freq Offset Compens. Config
-	PI_CC_SPIWriteReg(PI_CCxxx0_FOCCFG, 0x16); // Freq Offset Compens. Config
+	PI_CC_SPIWriteReg(PI_CCxxx0_FOCCFG, CC1101_DEFVAL_FOCCFG); // Freq Offset Compens. Config
 
 	// BSCFG:Bit Synchronization Configuration
 	// o bits 7:6: BS_PRE_KI: Clock recovery loop integral gain before sync word
@@ -712,7 +714,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   1 (01): ±3.125 % data rate offset
 	//   2 (10): ±6.25 % data rate offset
 	//   3 (11): ±12.5 % data rate offset
-	PI_CC_SPIWriteReg(PI_CCxxx0_BSCFG, 0x6C); //  Bit synchronization config.
+	PI_CC_SPIWriteReg(PI_CCxxx0_BSCFG, CC1101_DEFVAL_BSCFG); //  Bit synchronization config.
 
 	// AGCCTRL2: AGC Control
 	// o bits 7:6: MAX_DVGA_GAIN. Allowable DVGA settings
@@ -738,9 +740,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   5 (101): 38 dB
 	//   6 (110): 40 dB
 	//   7 (111): 42 dB
-#define CC1101_DEFVAL_AGCCTRL2   0x43        // AGC Control
-#define CC1101_DEFVAL_AGCCTRL1   0x40        // AGC Control
-#define CC1101_DEFVAL_AGCCTRL0   0x91        // AGC Control
+
 	PI_CC_SPIWriteReg(PI_CCxxx0_AGCCTRL2, CC1101_DEFVAL_AGCCTRL2); // AGC control.
 
 	// AGCCTRL1: AGC Control
@@ -790,7 +790,8 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// o bits 5:4: LNA2MIX_CURRENT: Adjusts front-end PTAT outputs
 	// o bits 3:2: LODIV_BUF_CURRENT_RX: Adjusts current in RX LO buffer (LO input to mixer)
 	// o bits 1:0: MIX_CURRENT: Adjusts current in mixer
-	PI_CC_SPIWriteReg(PI_CCxxx0_FREND1, 0xB6); // Front end RX configuration.
+	//xnutiu PI_CC_SPIWriteReg(PI_CCxxx0_FREND1, 0xB6); // Front end RX configuration.
+	PI_CC_SPIWriteReg(PI_CCxxx0_FREND1, CC1101_DEFVAL_FREND1); // Front end RX configuration.
 
 	// FREND0: Front End TX Configuration
 	// o bits 7:6: not used
@@ -802,17 +803,13 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//   index to use when transmitting a ‘1’. PATABLE index zero is used in OOK/ASK when transmitting a ‘0’. 
 	//   The PATABLE settings from index ‘0’ to the PA_POWER value are used for ASK TX shaping, 
 	//   and for power ramp-up/ramp-down at the start/end of transmission in all TX modulation formats.
-	PI_CC_SPIWriteReg(PI_CCxxx0_FREND0, 0x10); // Front end RX configuration.
+	PI_CC_SPIWriteReg(PI_CCxxx0_FREND0, CC1101_DEFVAL_FREND0); // Front end RX configuration.
 
 	// FSCAL3: Frequency Synthesizer Calibration
 	// o bits 7:6: The value to write in this field before calibration is given by the SmartRF
 	//   Studio software.
 	// o bits 5:4: CHP_CURR_CAL_EN: Disable charge pump calibration stage when 0.
 	// o bits 3:0: FSCAL3: Frequency synthesizer calibration result register.
-#define CC1101_DEFVAL_FSCAL3     0xE9        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL2     0x2A        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL1     0x00        // Frequency Synthesizer Calibration
-#define CC1101_DEFVAL_FSCAL0     0x1F        // Frequency Synthesizer Calibration
 
 	PI_CC_SPIWriteReg(PI_CCxxx0_FSCAL3, CC1101_DEFVAL_FSCAL3); // Frequency synthesizer cal.
 
@@ -841,8 +838,6 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 
 	return 0;
 }
-
-
 
 // ------------------------------------------------------------------------------------------------
 // Print status registers to stderr
@@ -1000,7 +995,7 @@ uint8_t radio_process_packet() {
 	uint8_t no_of_packets = 0;
 	while (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx) { //packets have been received and are waiting processing
 		circular_incr(radio_int_data.rx_buff_read_idx);
-		printf("rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
+		verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		char buff[512];
 		verbprintf(3, "RCV: SW packet: %s", swPacket.asString(buff));
