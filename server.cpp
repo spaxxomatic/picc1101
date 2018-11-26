@@ -63,36 +63,7 @@ void server_init(arguments_t *arguments)
 {
   if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
   readIniFile();
-  if (!mqtt_init()) die("Mqtt failure, exiting");
-}
-
-
-uint8_t server_command(uint8_t *block)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t command_code = block[1] & 0x0F;
-    uint8_t kiss_port = (block[1] & 0xF0)>>4;
-    uint8_t command_arg = block[2];
-
-    verbprintf(4, "Command %02X %02X\n", block[1], block[2]);
-
-    switch (command_code)
-    {
-        case 0: // data block
-            return 0;
-        case 1: // TXDELAY
-            //tnc_tx_keyup_delay = command_arg * 10000; // these are tenths of ms
-            break;
-        case 2: // Persistence parameter
-            //kiss_persistence = (command_arg + 1) / 256.0;
-            break;
-        case 3: // Slot time
-            //kiss_slot_time = command_arg * 10000; // these are tenths of ms
-            break;
-        default:
-            break;
-    }
-    return 1;
+  //if (!mqtt_init()) die("Mqtt failure, exiting");
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -103,24 +74,28 @@ void server_run(arguments_t *arguments)
     uint32_t timeout_value;
     uint64_t timestamp;
     struct timeval tp;  
-
+     printf("server_run 1\n");
+    sem_init(&sem_radio_irq, 0, 0);
     init_radio_int(arguments);
+    printf("server_run 2\n");
     radio_flush_fifos();
-    
+    printf("server_run 3\n");
     verbprintf(1, "Starting...\n");
     server_init(arguments);
     //connect to mqtt broker
 
     //enable radio rx
     radio_init_rx(); // init for new packet to receive Rx
+    printf("server_run 4\n");
     radio_turn_rx(); // Turn Rx on
-    sem_init(&sem_radio_irq, 0, 0);
+    printf("server_run 5\n");
     //server loop
     while(1){
+        printf("mainloop\n");
         sem_wait(&sem_radio_irq); //waiting for radio data in this thread
         if (radio_process_packet()){
-             mqtt_send("/CCRADIO/MSG","Got a packet");
+             printf("Got a packet\n");
         };        
-        tx_handler();
+        //tx_handler();
       }
 }

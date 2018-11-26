@@ -25,7 +25,7 @@
 #include "swpacket.h"
 #include "spaxstack.h"
 #include <stdio.h>
-
+#include "../../util.h"
 
 /**
  * SWPACKET
@@ -57,6 +57,14 @@ SWPACKET::SWPACKET(byte destAddr, byte function, byte regId, SWDATA data )
  */
 SWPACKET::SWPACKET(volatile CCPACKET* packet) 
 {
+  //#ifdef _DEBUG
+  for(int i = 0; i < packet->length ; i++){
+      if (i > 0) printf(":");
+      printf("%02X", packet->data[i]);
+  }
+  printf("\n");
+  //#endif
+  
   destAddr = packet->data[0];
   srcAddr = packet->data[1];
   hop = (packet->data[2] >> 4) & 0x0F;

@@ -44,10 +44,10 @@ VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC))
 build: $(SRC) $(OBJ) 
 
 link:
-	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(OBJ) $(LIB_LIST)
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS)  -o spaxxserver $(OBJ) $(LIB_LIST)
 
 link_mock: 
-	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver  $(sort $(OBJ) $(MOCK_OBJ)) $(LIB_LIST)
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS)  -o spaxxserver  $(sort $(OBJ) $(MOCK_OBJ)) $(LIB_LIST)
 
 build_mock: SRC := $(patsubst lib/radio/pi_cc_spi.cpp,,$(SRC)) #remove orig pic_cc_spi, since it is mocked
 build_mock: OBJ := $(patsubst $(TARGET_DIR)/pi_cc_spi.o,,$(OBJ))
