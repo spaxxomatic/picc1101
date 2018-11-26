@@ -63,7 +63,7 @@ void server_init(arguments_t *arguments)
 {
   if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
   readIniFile();
-  //if (!mqtt_init()) die("Mqtt failure, exiting");
+  if (!mqtt_init()) die("Mqtt failure, exiting");
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -74,21 +74,18 @@ void server_run(arguments_t *arguments)
     uint32_t timeout_value;
     uint64_t timestamp;
     struct timeval tp;  
-     printf("server_run 1\n");
-    sem_init(&sem_radio_irq, 0, 0);
+
     init_radio_int(arguments);
-    printf("server_run 2\n");
     radio_flush_fifos();
-    printf("server_run 3\n");
+    
     verbprintf(1, "Starting...\n");
     server_init(arguments);
     //connect to mqtt broker
 
     //enable radio rx
     radio_init_rx(); // init for new packet to receive Rx
-    printf("server_run 4\n");
     radio_turn_rx(); // Turn Rx on
-    printf("server_run 5\n");
+    sem_init(&sem_radio_irq, 0, 0);
     //server loop
     while(1){
         printf("mainloop\n");

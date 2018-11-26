@@ -12,3 +12,16 @@ void CCPACKET::copy(CCPACKET* source) { //copy constructor
     memcpy(data, source->data, length);
   }      
 } 
+
+void CCPACKET::dataAsHex(char* buff){
+  char tmpfbuff[10];
+  size_t pos = 0;
+  for (int i = 0; i < length+2 ; i++){
+      if (i > 0){
+	   sprintf(tmpfbuff, ":");
+	  }
+      sprintf(tmpfbuff, "%02X", data[i]);
+      strcpy(buff + pos, tmpfbuff);
+	  pos += strlen(tmpfbuff);
+  }
+} 

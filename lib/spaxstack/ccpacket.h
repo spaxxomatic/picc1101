@@ -70,6 +70,8 @@ class CCPACKET
      */
     uint8_t lqi;
 
+    void dataAsHex(char* buff);
+
 };
 
 #endif

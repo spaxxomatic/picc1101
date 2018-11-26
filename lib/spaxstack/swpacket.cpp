@@ -57,6 +57,7 @@ SWPACKET::SWPACKET(byte destAddr, byte function, byte regId, SWDATA data )
  */
 SWPACKET::SWPACKET(volatile CCPACKET* packet) 
 {
+//TODO: cleanup
   //#ifdef _DEBUG
   for(int i = 0; i < packet->length ; i++){
       if (i > 0) printf(":");

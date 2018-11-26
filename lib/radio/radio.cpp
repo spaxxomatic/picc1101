@@ -386,7 +386,6 @@ void init_radio_int( arguments_t *arguments)
         fprintf(stderr, "IRQ ISR failed\n");
     };       // set interrupt handler for packet interrupts
     //wiringPiISR(WPI_GDO0, INT_EDGE_FALLING, &irq_handle_packet);       // set interrupt handler for packet interrupts
-    verbprintf(1, "IRQ call ok\n");
     verbprintf(1, "Unit delay .............: %d us\n", radio_int_data.wait_us);
     verbprintf(1, "Packet delay ...........: %d us\n", arguments->packet_delay * radio_int_data.wait_us);
 }
@@ -1048,7 +1047,6 @@ uint8_t radio_process_packet(){
             default:
               break;
         } 
-        return 1;
     }
     return 0;
 }
