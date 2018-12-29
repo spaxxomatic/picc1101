@@ -11,15 +11,17 @@
 #include "lib/inih/inireader.h"
 
 #include "lib/spaxstack/spaxstack.h"
+#include "lib/radio/radio.h"
 
 extern INIReader* inireader ;
 extern void die(const char* msg);
-extern bool transmit_packet(CCPACKET* p_packet);
+extern bool transmit_packet(SWPACKET* p_packet);
 struct mosquitto *mosq = NULL;
 
 static std::string subscribe_actors_topic;
 static std::string subscribe_config_topic;
 static std::string subscribe_radionodes_descr_topic;
+static std::string subscribe_stat_topic;
 static std::string client_name;
 static std::string publish_to;
 // ------------------------------------------------------------------------------------------------
@@ -47,6 +49,12 @@ void handle_config_message(std::string actor_id, std::string payload){
     printf("handle_config_message %s %s\n", actor_id.c_str(), payload.c_str() );
 };
 
+void handle_stat_message(){
+    printf("handle_stat_message \n");
+    printf("--- Radio state ---\n");
+    print_radio_status();
+};
+
 void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
     verbprintf(3,"Msg: Thread id %i\n",getpid());    
@@ -65,24 +73,43 @@ void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mo
     {
         handle_radionodes_descr(get_actor_id_from_topic(subscribe_radionodes_descr_topic,message->topic), payload);
         return;
-    };
+    }else if (topic.compare(0,subscribe_stat_topic.length(), subscribe_stat_topic)==0)
+    {
+        handle_stat_message();
+        return;
+    }
+    ;
+}
+
+void subscribe_topic(std::string topic, int qos){
+    char* tp = strdup((topic + "#").c_str());
+    verbprintf(3,"Subscribing to %s\n",tp);
+    mosquitto_subscribe(mosq, NULL, tp, qos);
+    free(tp);
 }
 
 void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
 {
 	int i;
-    verbprintf(3,"Connect: Thread id %i\n",getpid());    
-	
+    verbprintf(3,"Connect: Thread id %i\n",getpid());	
 	if(!result){
         /* Subscribe to broker information topics on successful connect. */
+        subscribe_topic(subscribe_actors_topic,1);
+        subscribe_topic(subscribe_config_topic,1);
+        subscribe_topic(subscribe_radionodes_descr_topic,2);
+        subscribe_topic(subscribe_stat_topic,1);
+        /*
          char* t1 = strdup((subscribe_actors_topic + "#").c_str());
          char* t2 = strdup((subscribe_config_topic + "#").c_str());
          char* t3 = strdup((subscribe_radionodes_descr_topic + "#").c_str());
+         char* t4 = strdup((subscribe_stat_topic + "#").c_str());
         verbprintf(3,"Subscribing to %s %s %s \n",t1, t2, t3);
         mosquitto_subscribe(mosq, NULL, t1, 1);
         mosquitto_subscribe(mosq, NULL, t2, 1);
         mosquitto_subscribe(mosq, NULL, t3, 2);
-        free(t1); free(t2); free(t3);
+        mosquitto_subscribe(mosq, NULL, t4, 1);
+        free(t1); free(t2); free(t3); free(t4);
+        */
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -121,6 +148,10 @@ bool mqtt_init(){
     if(subscribe_config_topic == UNDEF){
         die("Missing subscribe_config_topic in mqtt section of ini file");
     }    
+    subscribe_stat_topic.assign(inireader->Get("mqtt","subscribe_stat_topic", UNDEF));
+    if(subscribe_stat_topic == UNDEF){
+        die("Missing subscribe_stat_topic in mqtt section of ini file");
+    }       
     subscribe_radionodes_descr_topic.assign(inireader->Get("mqtt","subscribe_radionodes_descr_topic", UNDEF));    
     if(subscribe_radionodes_descr_topic == UNDEF){
         die("Missing subscribe_radionodes_descr_topic in mqtt section of ini file");

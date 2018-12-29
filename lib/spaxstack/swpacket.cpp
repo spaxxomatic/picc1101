@@ -89,36 +89,33 @@ SWPACKET::SWPACKET(void)
 /**
  * prepare
  * 
- * Prepares and returns a CCPACKET ready to be sent.
- *
- * Return:
- *  CCPACKET
+ * Fills up a CCPACKET structure for sending.
+ * 
  */
-CCPACKET SWPACKET::prepare(void)
+void SWPACKET::prepare(CCPACKET* packet)
 {
-  CCPACKET packet;
   byte i;
   bool res;
 
-  packet.length = value.length + SWAP_DATA_HEAD_LEN + 1;
-  packet.data[0] = destAddr;
-  packet.data[1] = srcAddr;
-  packet.data[2] = (hop << 4) & 0xF0;
-  packet.data[3] = commstack.sentPacketNo;
-  packet.data[4] = function;
-  packet.data[5] = regAddr;
-  packet.data[6] = regId;
+  packet->length = value.length + SWAP_DATA_HEAD_LEN + 1;
+  packet->errorCode = 0;
+  packet->data[0] = destAddr;
+  packet->data[1] = srcAddr;
+  packet->data[2] = (hop << 4) & 0xF0;
+  packet->data[3] = commstack.sentPacketNo;
+  packet->data[4] = function;
+  packet->data[5] = regAddr;
+  packet->data[6] = regId;
 
   for(i=0 ; i<value.length ; i++)
-    packet.data[i+7] = value.data[i];
+    packet->data[i+7] = value.data[i];
 
-  commstack.sentPacketNo+=1; //increment packet number for next transmission
-  commstack.stackState = STACKSTATE_WAIT_ACK;
-  return packet;
+  //commstack.sentPacketNo += 1; //increment packet number for next transmission
+  //commstack.stackState = STACKSTATE_WAIT_ACK;
 }
 
 
 char* SWPACKET::asString(char* buffer){
-  sprintf(buffer, "SRC: %i DEST: %i \nFUNC: %i REG: %02X REGVAL: %02X\n ", srcAddr, destAddr, function, regAddr, regId);
+  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i\n ", destAddr, srcAddr, packetNo, function, regAddr, regId, value.length);
   return buffer;
 }

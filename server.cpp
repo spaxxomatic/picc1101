@@ -63,7 +63,15 @@ void server_init(arguments_t *arguments)
 {
   if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
   readIniFile();
+  init_radio_int();
+  
+  int ret = reset_radio();
+  if (ret != 0) die("Cannot initialize radio link");
+  //connect to mqtt broker
   if (!mqtt_init()) die("Mqtt failure, exiting");
+
+  sem_init(&sem_radio_irq, 0, 0);
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -74,24 +82,17 @@ void server_run(arguments_t *arguments)
     uint32_t timeout_value;
     uint64_t timestamp;
     struct timeval tp;  
-
-    init_radio_int(arguments);
-    radio_flush_fifos();
-    
     verbprintf(1, "Starting...\n");
     server_init(arguments);
-    //connect to mqtt broker
 
-    //enable radio rx
-    radio_init_rx(); // init for new packet to receive Rx
-    radio_turn_rx(); // Turn Rx on
-    sem_init(&sem_radio_irq, 0, 0);
     //server loop
     while(1){
+        printf("mainloop\n");
         sem_wait(&sem_radio_irq); //waiting for radio data in this thread
         if (radio_process_packet()){
-             mqtt_send("/CCRADIO/MSG","Got a packet");
+             //mqtt_send("/CCRADIO/MSG","Got a packet");         
+		     printf("Got a packet\n");
         };        
-        tx_handler();
+        //tx_handler();
       }
 }

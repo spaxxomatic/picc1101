@@ -4,16 +4,14 @@ MD := mkdir
 RM := rm -f
 
 
-EXTRA_CFLAGS := -DMAX_VERBOSE_LEVEL=4 -MMD
+EXTRA_CFLAGS :=  -std=c++11 -DMAX_VERBOSE_LEVEL=4 -MMD
 
 
-SRC :=  main.cpp lib/inih/ini.c mqtt.cpp lib/spaxstack/register.cpp $(wildcard lib/spaxstack/*.cpp) \
- lib/spaxstack/swstatus.cpp lib/spaxstack/swpacket.cpp lib/spaxstack/ccpacket.cpp lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
+SRC :=  main.cpp lib/inih/ini.c mqtt.cpp  $(wildcard lib/spaxstack/*.cpp)  lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
  server.cpp test.cpp util.c lib/inih/inireader.cpp 
 
 TARGET_DIR := out
 VPATH = $(dir $(SRC)) 
-
 MOCK_FILES := $(wildcard mocks/*.cpp)
 MOCK_FILES += $(wildcard mocks/*.c)
 MOCK_OBJ := $(patsubst %.c,%.o, $(notdir $(MOCK_FILES))) 
@@ -36,7 +34,7 @@ list_obj:
 
 DEP = $(OBJ:.o=.d)
 
-CC := g++
+CC := g++ -g3
 
 .PHONY: prepare list_objects prepare_mock gccversion clean 
 
@@ -51,15 +49,15 @@ VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC))
 build: $(SRC) $(OBJ) 
 
 link:
-	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver $(OBJ) $(LIB_LIST)
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS)  -o spaxxserver $(OBJ) $(LIB_LIST)
 
 link_mock: 
-	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS) -s -o spaxxserver  $(sort $(OBJ) $(MOCK_OBJ)) $(LIB_LIST)
+	$(CC) $(LDFLAGS) $(EXTRA_CFLAGS)  -o spaxxserver  $(sort $(OBJ) $(MOCK_OBJ)) $(LIB_LIST)
 
 build_mock: SRC := $(patsubst lib/radio/pi_cc_spi.cpp,,$(SRC)) #remove orig pic_cc_spi, since it is mocked
 build_mock: OBJ := $(patsubst $(TARGET_DIR)/pi_cc_spi.o,,$(OBJ))
 
-LIB_LIST = -lm -lmosquitto -lrt -lpthread -lwiringpi -lwiringpiDev
+LIB_LIST = -lm -lmosquitto -lrt -lpthread -lwiringPi -lwiringPiDev
 mock: VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC)) 
 mock: LIB_LIST = -lm -lmosquitto -lrt -lpthread
 
