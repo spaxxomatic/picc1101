@@ -12,6 +12,11 @@ SRC :=  main.cpp lib/inih/ini.c mqtt.cpp  $(wildcard lib/spaxstack/*.cpp)  lib/r
 
 TARGET_DIR := out
 VPATH = $(dir $(SRC)) 
+MOCK_FILES := $(wildcard mocks/*.cpp)
+MOCK_FILES += $(wildcard mocks/*.c)
+MOCK_OBJ := $(patsubst %.c,%.o, $(notdir $(MOCK_FILES))) 
+MOCK_OBJ := $(MOCK_OBJ:.cpp=.o) 
+MOCK_OBJ := $(addprefix $(TARGET_DIR)/, $(MOCK_OBJ))
 
 FNAMES = $(notdir $(SRC)) 
 

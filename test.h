@@ -16,7 +16,5 @@
 
 int  radio_transmit_test_int( arguments_t *arguments);
 int  radio_receive_test_int( arguments_t *arguments);
-void radio_test_echo( radio_parms_t *radio_parms, arguments_t *arguments, uint8_t active);
-int radio_receive_test( arguments_t *arguments);
 
 #endif

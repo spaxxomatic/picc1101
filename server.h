@@ -15,4 +15,5 @@ void server_run( arguments_t *arguments);
 void server_init(arguments_t *arguments);
 void die(char* msg);
 void readIniFile();
+int registerNewNode();
 #endif

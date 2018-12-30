@@ -69,7 +69,7 @@ struct SWDATA
     byte length;
 };
 
-class SWPACKET : public CCPACKET
+class SWPACKET 
 {
   public:
     /**
@@ -137,7 +137,7 @@ class SWPACKET : public CCPACKET
      *  True if the transmission succeeds
      *  False otherwise
      */
-    CCPACKET prepare(void);
+    void prepare(CCPACKET* packet);
     char* asString(char* buffer);
 };
 

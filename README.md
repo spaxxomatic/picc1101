@@ -17,22 +17,7 @@ Connects an Orange Pi or Raspberry Pi to CC1101 RF module and implements the spa
   - [Program options](#program-options)
   - [Detailed options](#detailed-options)
     - [Verbosity level (-v)](#verbosity-level--v)
-    - [Radio interface speeds (-R)](#radio-interface-speeds--r)
-    - [Modulations (-M)](#modulations--m)
     - [Test routines (-t)](#test-routines--t)
-- [AX.25/KISS operation](#ax25kiss-operation)
-  - [Set up the AX.25/KISS environment](#set-up-the-ax25kiss-environment)
-    - [Kernel modules](#kernel-modules)
-    - [Install AX.25 and KISS software](#install-ax25-and-kiss-software)
-    - [Create your AX.25 interfaces configuration](#create-your-ax25-interfaces-configuration)
-    - [Create a virtual serial link](#create-a-virtual-serial-link)
-    - [Create the network device using kissattach](#create-the-network-device-using-kissattach)
-    - [Scripts that will run these commands](#scripts-that-will-run-these-commands)
-  - [Run the program](#run-the-program)
-  - [Relay the KST chat](#relay-the-kst-chat)
-- [Details of the design](#details-of-the-design)
-  - [Multiple block handling](#multiple-block-handling)
-  - [Mitigate AX.25/KISS spurious packet retransmissions](#mitigate-ax25kiss-spurious-packet-retransmissions)
 
 # Introduction
 The RF module based on the Texas Instruments (Chipcon) chip CC1101  is a OOK/2-FSK/4-FSK/MSK/GFSK low power (~10dBm) digital transceiver working in the 315, 433 and 868 MHz ISM bands. It is used as a radio interface for conecting various sensors/actors in a home automation scenario. 
@@ -75,18 +60,6 @@ You can compile on the Raspberry Pi v.1 as it doesn't take too much time even on
 
 The result is the `spaxxserver` executable in the /out directory
 
-## Run test programs
-// TODO
-On the sending side:
-  - `sudo ./picc1101 -v1 -B 9600 -P 252 -R7 -M4 -W -l15 -t2 -n5`
-
-On the receiving side:
-  - `sudo ./picc1101 -v1 -B 9600 -P 252 -R7 -M4 -W -l15 -t4 -n5`
-
-This will send 5 blocks of 252 bytes at 9600 Baud using GFSK modulation and receive them at the other end. The block will contain the default test phrase `Hello, World!`.
-
-Note that you have to be super user to execute the program.
-
 ## Process priority
 You may experience better behaviour (less timeouts) depending on the speed of the link when raising the prioriry of the process. Interrupts are already served with high priority (-56) with the WiringPi library. The main process may need a little boost as well though
 
@@ -106,11 +79,6 @@ You can use option -T of the program to get an even lower priority of -2 for a s
   -l, --packet-delay=DELAY_UNITS   Delay between successive radio blocks when
                              transmitting a larger block. In 2-FSK byte
                              duration units. (default 30)
-  -m, --modulation-index=MODULATION_INDEX
-                             Modulation index (default 0.5)
-  -M, --modulation=MODULATION_SCHEME
-                             Radio modulation scheme, See long help (-H)
-                             option
   -n, --repetition=REPETITION   Repetiton factor wherever appropriate, see long
                              Help (-H) option (default : 1 single)
   -R, --rate=DATA_RATE_INDEX Data rate index, See long help (-H) option
@@ -130,8 +98,6 @@ You can use option -T of the program to get an even lower priority of -2 for a s
                              Data rate skew multiplier. (default 1.0 = no
                              skew)
   -W, --whitening            Activate whitening (default off)
-  -y, --test-phrase=TEST_PHRASE   Set a test phrase to be used in test (default
-                             : "Hello, World!")
   -?, --help                 Give this help list
       --usage                Give a short usage message
       --version              Print program version

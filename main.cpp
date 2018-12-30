@@ -19,26 +19,17 @@
 #include "test.h"
 
 arguments_t   arguments;
-radio_parms_t radio_parameters;
 
 using namespace std;
 
 char const *test_mode_names[] = {
     "No test",
-    "Simple Tx with polling. Packet < 64 bytes",
+    "Simple Tx with polling",
     "Simple Tx with packet interrupt handling. Packet up to 255 bytes",
-    "Simple Rx with polling. Packet < 64 bytes",
+    "Simple Rx with polling",
     "Simple Rx with packet interrupt handling. Packet up to 255 bytes",
     "Simple echo test starting with Tx",
     "Simple echo test starting with Rx"
-};
-
-char const *modulation_names[] = {
-    "OOK",
-    "2-FSK",
-    "4-FSK",
-    "MSK",
-    "GFSK",
 };
 
 uint32_t rate_values[] = {
@@ -83,17 +74,14 @@ static struct argp_option options[] = {
     {"long-help",  'H', 0, 0, "Print a long help and exit"},
     {"real-time",  'T', 0, 0, "Engage so called \"real time\" scheduling (defalut 0: no)"},
     {"spi-device",  'd', "SPI_DEVICE", 0, "SPI device, (default : /dev/spidev0.0)"},
-    {"modulation",  'M', "MODULATION_SCHEME", 0, "Radio modulation scheme, See long help (-H) option"},
     {"rate",  'R', "DATA_RATE_INDEX", 0, "Data rate index, See long help (-H) option"},
     {"rate-skew",  'w', "RATE_MULTIPLIER", 0, "Data rate skew multiplier. (default 1.0 = no skew)"},
     {"packet-delay",  'l', "DELAY_UNITS", 0, "Delay between successive radio blocks when transmitting a larger block. In 2-FSK byte duration units. (default 30)"},
-    {"modulation-index",  'm', "MODULATION_INDEX", 0, "Modulation index (default 0.5)"},
     {"fec",  'F', 0, 0, "Activate FEC (default off)"},
     {"whitening",  'W', 0, 0, "Activate whitening (default off)"},
     {"frequency",  'f', "FREQUENCY_HZ", 0, "Frequency in Hz (default: 433600000)"},
     {"variable-length",  'V', 0, 0, "Variable packet length. Given packet length becomes maximum length (default off)"},
     {"test-mode",  't', "TEST_SCHEME", 0, "Test scheme, See long help (-H) option fpr details (default : 0 no test)"},
-    {"test-phrase",  'y', "TEST_PHRASE", 0, "Set a test phrase to be used in test (default : \"Hello, World!\")"},
     {"repetition",  'n', "REPETITION", 0, "Repetiton factor wherever appropriate, see long Help (-H) option (default : 1 single)"},
     {"radio-status",  's', 0, 0, "Print radio status and exit"},
     {0}
@@ -115,14 +103,6 @@ static void terminate(const int signal_) {
 static void print_long_help()
 {
     int i;
-
-    fprintf(stderr, "Modulation scheme option -M values\n");
-    fprintf(stderr, "Value:\tScheme:\n");
-
-    for (i=0; i<NUM_MOD; i++)
-    {
-        fprintf(stderr, "%d\t%s\n", i, modulation_names[i]);
-    }
 
     fprintf(stderr, "\nRate indexes option -R values\n");    
     fprintf(stderr, "Value:\tRate (Baud):\n");
@@ -154,14 +134,11 @@ static void init_args(arguments_t *arguments)
     arguments->print_long_help = 0;
     arguments->spi_device = 0;
     arguments->print_radio_status = 0;
-    arguments->modulation = MOD_FSK2;
     arguments->rate = RATE_9600;
     arguments->rate_skew = 1.0;
     arguments->packet_delay = 30;
-    arguments->modulation_index = 0.5;
     arguments->freq_hz = 433600000;
     arguments->test_mode = TEST_NONE;
-    arguments->test_phrase = strdup("Hello, World!");
     arguments->repetition = 1;
     arguments->whitening = 0;
     arguments->preamble = PREAMBLE_4;
@@ -182,10 +159,6 @@ void delete_args(arguments_t *arguments)
     {
         free(arguments->spi_device);
     }
-    if (arguments->test_phrase)
-    {
-        free(arguments->test_phrase);
-    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -197,11 +170,9 @@ static void print_args(arguments_t *arguments)
     fprintf(stderr, "Verbosity ...........: %d\n", arguments->verbose_level);
     fprintf(stderr, "Real time ...........: %s\n", (arguments->real_time ? "yes" : "no"));
     fprintf(stderr, "--- radio ---\n");
-    fprintf(stderr, "Modulation ..........: %s\n", modulation_names[arguments->modulation]);
     fprintf(stderr, "Rate nominal ........: %d Baud\n", rate_values[arguments->rate]);
     fprintf(stderr, "Rate skew ...........: %.2f\n", arguments->rate_skew);
     fprintf(stderr, "Packet delay ........: ~%d bytes with 2-FSK\n", arguments->packet_delay);
-    fprintf(stderr, "Modulation index ....: %.2f\n", arguments->modulation_index);
     fprintf(stderr, "Frequency ...........: %d Hz\n", arguments->freq_hz);
     fprintf(stderr, "Preamble size .......: %d bytes\n", nb_preamble_bytes[arguments->preamble]);
     fprintf(stderr, "Whitening ...........: %s\n", (arguments->whitening ? "on" : "off"));
@@ -210,7 +181,6 @@ static void print_args(arguments_t *arguments)
     if (arguments->test_mode != TEST_NONE)
     {
         fprintf(stderr, "Test mode ...........: %s\n", test_mode_names[arguments->test_mode]);
-        fprintf(stderr, "Test phrase .........: %s\n", arguments->test_phrase);
         fprintf(stderr, "Test repetition .....: %d times\n", arguments->repetition);
     }
 
@@ -229,21 +199,6 @@ static test_mode_t get_test_scheme(uint8_t test_mode_index)
     else
     {
         return TEST_NONE;
-    }
-}
-
-// ------------------------------------------------------------------------------------------------
-// Get modulation scheme from index
-static modulation_t get_modulation_scheme(uint8_t modulation_index)
-// ------------------------------------------------------------------------------------------------
-{
-    if (modulation_index < NUM_MOD)
-    {
-        return (modulation_t) modulation_index;
-    }
-    else
-    {
-        return MOD_FSK2;
     }
 }
 
@@ -292,14 +247,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         // Reception test
         case 'r':
             arguments->test_rx = 1;
-            break;
-        // Modulation scheme 
-        case 'M':
-            i8 = strtol(arg, &end, 10); 
-            if (*end)
-                argp_usage(state);
-            else
-                arguments->modulation = get_modulation_scheme(i8);
             break;
         // Test scheme 
         case 't':
@@ -350,17 +297,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         case 'd':
             arguments->spi_device = strdup(arg);
             break;
-        // Transmission test phrase
-        case 'y':
-            arguments->test_phrase = strdup(arg);
-            break;
         // Print radio status and exit
         case 's':
             arguments->print_radio_status = 1;
-            break;
-        // Modulation index
-        case 'm':
-            arguments->modulation_index = atof(arg);
             break;
         // Rate skew multiplier
         case 'w':
@@ -456,9 +395,8 @@ int main (int argc, char **argv)
     }
 
     print_args(&arguments);
-
-    init_radio_parms(&radio_parameters, &arguments);
-    ret = init_radio(&radio_parameters, &arguments);
+    setup_spi(&arguments);
+    ret = reset_radio();
 
     if (ret != 0)
     {
@@ -476,21 +414,9 @@ int main (int argc, char **argv)
     {
         radio_transmit_test_int( &arguments);
     }
-    else if (arguments.test_mode == TEST_RX_SIMPLE)
-    {
-        radio_receive_test( &arguments);
-    }
     else if (arguments.test_mode == TEST_RX_INTERRUPT)
     {
         radio_receive_test_int( &arguments);
-    }
-    else if (arguments.test_mode == TEST_TX_ECHO)
-    {
-        radio_test_echo( &radio_parameters, &arguments, 1);
-    }
-    else if (arguments.test_mode == TEST_RX_ECHO)
-    {
-        radio_test_echo( &radio_parameters, &arguments, 0);
     }
     else
     {

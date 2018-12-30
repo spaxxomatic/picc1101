@@ -28,6 +28,10 @@
 
 sem_t sem_radio_irq; //semaphore for thread sync
 //static radio_int_data_t *p_radio_int_data = 0;
+extern int registerNewNode();
+
+#define RADIO_WATCHDOG_TIMEOUT 1000 // ms to wait for a send/receive finish
+radio_parms_t radio_parameters;
 
 const char *state_names[] = {
 	"SLEEP",            // 00
@@ -64,26 +68,6 @@ const char *state_names[] = {
 	"undefined"         // 31 0x25
 };
 
-// 4x4 channel bandwidth limits
-float chanbw_limits[] = {
-	812000.0,
-	650000.0,
-	541000.0,
-	464000.0,
-	406000.0,
-	325000.0,
-	270000.0,
-	232000.0,
-	203000.0,
-	162000.0,
-	135000.0,
-	116000.0,
-	102000.0,
-	81000.0,
-	68000.0,
-	58000.0
-};
-
 
 CODE_TO_DESCR ERR_DESCRIPTIONS[] =
 {
@@ -100,11 +84,6 @@ CCPACKET  rx_ccpacket_buf[BUFF_SIZE]; // Rx buffer
 // === Static functions declarations ==============================================================
 
 static float    rssi_dbm(uint8_t rssi_dec);
-static uint32_t get_freq_word(uint32_t freq_xtal, uint32_t freq_hz);
-static uint8_t  get_mod_word(modulation_t modulation_code);
-static uint32_t get_if_word(uint32_t freq_xtal, uint32_t if_hz);
-static void     get_chanbw_words(float bw, radio_parms_t *radio_parms);
-static void     get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms);
 static bool     wait_for_state(ccxxx0_state_t state, uint32_t timeout);
 static uint8_t  crc_check(uint8_t *block);
 
@@ -125,22 +104,24 @@ void irq_handle_packet(void) {
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
 		{
-			verbprintf(3, "Rising IRQ\n");
+			verbprintf(3, "RX R IRQ\n");
+			radio_int_data.packet_receive = 1;
 		}else{
-			verbprintf(3, "FallingIRQ\n");
+			verbprintf(3, "RX F IRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
 			// Any byte waiting to be read and no overflow?
 			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { //is there data to be read and no overflow?
 				// Read data length
 				PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the data len
-
 				if (rxDataLength > CC1101_DATA_LEN) {
 					packet.errorCode = RADIOERR_PACKET_TOO_LONG;
 				}
 				else {
 					//read the net data
-					packet.length = rxDataLength;
-					PI_CC_SPIReadBurstReg(PI_CCxxx0_RXFIFO, packet.data, packet.length);
+					packet.length = rxDataLength ;
+					PI_CC_SPIReadBurstReg(PI_CCxxx0_RXFIFO, packet.data, packet.length ); 
+					//packet.printAsHex();
+					
 					//the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is LQI/CRC
 					// Read RSSI
 					PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &packet.rssi);
@@ -159,27 +140,25 @@ void irq_handle_packet(void) {
 			rx_ccpacket_buf[radio_int_data.rx_buff_idx].errorCode = packet.errorCode;
 			//the copy function will copy the data only if there are no errors
 			rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
-			//printf("Wrote CCPACK to pos %i addr %i\n",radio_int_data.rx_buff_idx, &rx_ccpacket_buf[radio_int_data.rx_buff_idx]);
+			//increment semaphore to notify packet reception
+			sem_post(&sem_radio_irq);
+			radio_int_data.packet_receive = 0; //receive done
 		}
 	}
 	else if (radio_int_data.mode == RADIOMODE_TX) {
 		if (int_line) {
-			verbprintf(3, "GDO0 Tx Rising \n");
 			radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
+			verbprintf(3, "TX R IRQ\n");
 		}
 		else {
-			verbprintf(3, "GDO0 Tx Falling \n");
+			verbprintf(3, "TX F IRQ\n");
 			if (radio_int_data.packet_send) // packet has been sent
 			{
-				radio_int_data.mode = RADIOMODE_NONE;
+				radio_int_data.mode = RADIOMODE_TX_END; //the mode has to be set 
 				radio_int_data.packet_send = 0; // De-assert packet transmission after packet has been sent
-				//print_radio_status();
-				//radio_flush_fifos();
 			}
 		}
 	}
-	//increment semaphore
-	sem_post(&sem_radio_irq);
 }
 // === Static functions ===========================================================================
 // ------------------------------------------------------------------------------------------------
@@ -198,133 +177,26 @@ float rssi_dbm(uint8_t rssi_dec)
 }
 
 // ------------------------------------------------------------------------------------------------
-// Calculate frequency word FREQ[23..0]
-uint32_t get_freq_word(uint32_t freq_xtal, uint32_t freq_hz)
-// ------------------------------------------------------------------------------------------------
-{
-	uint64_t res; // calculate on 64 bits to save precision
-	res = ((uint64_t)freq_hz * (uint64_t)(1 << 16)) / ((uint64_t)freq_xtal);
-	return (uint32_t)res;
-}
-
-// ------------------------------------------------------------------------------------------------
-// Calculate frequency word FREQ[23..0]
-uint32_t get_if_word(uint32_t freq_xtal, uint32_t if_hz)
-// ------------------------------------------------------------------------------------------------
-{
-	return (if_hz * (1 << 10)) / freq_xtal;
-}
-
-// ------------------------------------------------------------------------------------------------
-// Calculate modulation format word MOD_FORMAT[2..0]
-uint8_t get_mod_word(modulation_t modulation_code)
-// ------------------------------------------------------------------------------------------------
-{
-	switch (modulation_code)
-	{
-	case MOD_OOK:
-		return 3;
-		break;
-	case MOD_FSK2:
-		return 0;
-		break;
-	case MOD_FSK4:
-		return 4;
-		break;
-	case MOD_MSK:
-		return 7;
-		break;
-	case MOD_GFSK:
-		return 1;
-		break;
-	default:
-		return 0;
-	}
-}
-
-// ------------------------------------------------------------------------------------------------
-// Calculate CHANBW words according to CC1101 bandwidth steps
-void get_chanbw_words(float bw, radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	uint8_t e_index, m_index;
-
-	for (e_index = 0; e_index < 4; e_index++)
-	{
-		for (m_index = 0; m_index < 4; m_index++)
-		{
-			if (bw > chanbw_limits[4 * e_index + m_index])
-			{
-				radio_parms->chanbw_e = e_index;
-				radio_parms->chanbw_m = m_index;
-				return;
-			}
-		}
-	}
-
-	radio_parms->chanbw_e = 3;
-	radio_parms->chanbw_m = 3;
-}
-
-// ------------------------------------------------------------------------------------------------
-// Calculate data rate, channel bandwidth and deviation words. Assumes 26 MHz crystal.
-//   o DRATE = (Fxosc / 2^28) * (256 + DRATE_M) * 2^DRATE_E
-//   o CHANBW = Fxosc / (8(4+CHANBW_M) * 2^CHANBW_E)
-//   o DEVIATION = (Fxosc / 2^17) * (8 + DEVIATION_M) * 2^DEVIATION_E
-void get_rate_words(arguments_t *arguments, radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	double drate, deviat, f_xtal;
-
-	drate = (double)rate_values[arguments->rate];
-	drate *= arguments->rate_skew;
-
-	if ((arguments->modulation == MOD_FSK4) && (drate > 300000.0))
-	{
-		fprintf(stderr, "RADIO: forcibly set data rate to 300 kBaud for 4-FSK\n");
-		drate = 300000.0;
-	}
-
-	deviat = drate * arguments->modulation_index;
-	f_xtal = (double)radio_parms->f_xtal;
-
-	get_chanbw_words(2.0*(deviat + drate), radio_parms); // Apply Carson's rule for bandwidth
-
-#ifndef _MOCKED
-	radio_parms->drate_e = (uint8_t)(floor(log2(drate*(1 << 20) / f_xtal)));
-	radio_parms->drate_m = (uint8_t)(((drate*(1 << 28)) / (f_xtal * (1 << radio_parms->drate_e))) - 256);
-	radio_parms->drate_e &= 0x0F; // it is 4 bits long
-
-	radio_parms->deviat_e = (uint8_t)(floor(log2(deviat*(1 << 14) / f_xtal)));
-	radio_parms->deviat_m = (uint8_t)(((deviat*(1 << 17)) / (f_xtal * (1 << radio_parms->deviat_e))) - 8);
-	radio_parms->deviat_e &= 0x07; // it is 3 bits long
-	radio_parms->deviat_m &= 0x07; // it is 3 bits long
-
-	radio_parms->chanspc_e &= 0x03; // it is 2 bits long
-#endif
-}
-
-// ------------------------------------------------------------------------------------------------
-// Poll FSM state waiting for apost-TX  state transition until timeout (approx ms)
+// Poll FSM state waiting for a post-TX state transition until timeout (approx ms)
 bool wait_for_tx_end(uint32_t timeout)
 // ------------------------------------------------------------------------------------------------
 {
 	uint8_t fsm_state;
-
 	while (timeout)
 	{
+		usleep(1000);
 		PI_CC_SPIReadStatus(PI_CCxxx0_MARCSTATE, &fsm_state);
 		fsm_state &= 0x1F;
+		//verbprintf(1, "   modem in state %s \n", state_names[fsm_state]);
 		if ((fsm_state != 0x13) && (fsm_state != 0x14) && (fsm_state != 0x15)) {
 			break;
 		}
-		usleep(1000);
 		timeout--;
 	}
 
 	if (!timeout)
 	{
-		verbprintf(1, "RADIO: timeout reached in state %s waiting for TX end\n", state_names[fsm_state]);
+		verbprintf(1, "wait_for_tx_end: timeout reached in state %s waiting for TX end\n", state_names[fsm_state]);
 		return false;
 	}
 	return true;
@@ -355,7 +227,7 @@ bool wait_for_state(ccxxx0_state_t state, uint32_t timeout)
 
 	if (!timeout)
 	{
-		verbprintf(1, "RADIO: timeout reached in state %s waiting for state %s\n", state_names[fsm_state], state_names[state]);
+		verbprintf(1, "wait_for_state: timeout reached in state %s waiting for state %s\n", state_names[fsm_state], state_names[state]);
 		return false;
 		if (fsm_state == CCxxx0_STATE_RXFIFO_OVERFLOW)
 		{
@@ -370,7 +242,7 @@ bool wait_for_state(ccxxx0_state_t state, uint32_t timeout)
 
 // ------------------------------------------------------------------------------------------------
 // Initialize interrupt data and mechanism
-void init_radio_int(arguments_t *arguments)
+void init_radio_int()
 // ------------------------------------------------------------------------------------------------
 {
 	radio_int_data.rx_buff_idx = 0;
@@ -380,14 +252,9 @@ void init_radio_int(arguments_t *arguments)
 
 	packets_sent = 0;
 	packets_received = 0;
-	radio_int_data.wait_us = 8000000 / rate_values[arguments->rate]; // approximately 2-FSK byte delay
-	radio_int_data.mode = RADIOMODE_RX;
 	if (wiringPiISR(WPI_GDO0, INT_EDGE_BOTH, &irq_handle_packet) != 0) {
 		fprintf(stderr, "IRQ ISR failed\n");
 	};       // set interrupt handler for packet interrupts
-	//wiringPiISR(WPI_GDO0, INT_EDGE_FALLING, &irq_handle_packet);       // set interrupt handler for packet interrupts
-	verbprintf(1, "Unit delay .............: %d us\n", radio_int_data.wait_us);
-	verbprintf(1, "Packet delay ...........: %d us\n", arguments->packet_delay * radio_int_data.wait_us);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -405,7 +272,6 @@ void radio_turn_rx()
 {
 	PI_CC_SPIStrobe(PI_CCxxx0_SRX);
 	wait_for_state(CCxxx0_STATE_RX, 10); // Wait max 10ms
-
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -417,44 +283,18 @@ void radio_flush_fifos()
 	PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
 }
 
-// ------------------------------------------------------------------------------------------------
-// Initialize constant radio parameters
-void init_radio_parms(radio_parms_t *radio_parms, arguments_t *arguments)
-// ------------------------------------------------------------------------------------------------
-{
-	radio_parms->f_xtal = 26000000;         // 26 MHz Xtal
-	radio_parms->f_if = 310000;           // 304.6875 kHz (lowest point below 310 kHz)
-	radio_parms->sync_ctl = SYNC_30_over_32;  // 30/32 sync word bits detected
-	radio_parms->chanspc_m = 0;                // Do not use channel spacing for the moment defaulting to 0
-	radio_parms->chanspc_e = 0;                // Do not use channel spacing for the moment defaulting to 0
-	radio_parms->modulation = (radio_modulation_t)arguments->modulation;
-}
-
-
-// ------------------------------------------------------------------------------------------------
-// Initialize the radio link interface
-int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
-// ------------------------------------------------------------------------------------------------
-{
-	int ret = 0;
-	uint8_t  reg_word;
-
-	verbprintf(1, "\ninit_radio...\n");
-
+int setup_spi(arguments_t *arguments){
+	
 	wiringPiSetup(); // initialize Wiring Pi library and GDOx interrupt routines
 	verbprintf(1, "wiringPiSetup done.\n");
-
+	int ret = 0;
 	// Switch main thread to real time
 	if (arguments->real_time)
 	{
 		ret = piHiPri(1);
-
-		if (ret == 0)
-		{
+		if (ret == 0){
 			fprintf(stderr, "RADIO: real time OK\n");
-		}
-		else
-		{
+		}else{
 			perror("RADIO: cannot set in real time");
 		}
 	}
@@ -462,16 +302,38 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// open SPI link
 	PI_CC_SPIParmsDefaults();
 	ret = PI_CC_SPISetup(arguments);
-
 	if (ret != 0)
 	{
 		fprintf(stderr, "RADIO: cannot open SPI link, RC=%d\n", ret);
-		return ret;
 	}
 	else
 	{
 		verbprintf(1, "SPI open.\n");
 	}
+	return ret;
+}
+
+int reset_radio(){
+	radio_parameters.f_xtal = 26000000;         // 26 MHz Xtal
+	radio_parameters.f_if = 310000;           // 304.6875 kHz (lowest point below 310 kHz)
+	int ret = init_radio();
+	if (ret == 0){
+		radio_flush_fifos();
+	  	radio_init_rx(); // init for new packet to receive Rx
+	  	radio_turn_rx(); // Turn Rx on
+	}
+	return ret;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Initialize the radio link interface
+int init_radio()
+// ------------------------------------------------------------------------------------------------
+{
+	int ret = 0;
+	uint8_t  reg_word;
+
+	verbprintf(1, "\ninit_radio...\n");
 
 	ret = PI_CC_PowerupResetCCxxxx(); // reset chip
 
@@ -486,7 +348,6 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	}
 
 	int packet_length = 10;  // Packet length
-	get_rate_words(arguments, radio_parms);
 
 	// Write register settings
 
@@ -548,7 +409,8 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// FSCTRL1: The desired IF frequency to employ in RX. Subtracted from FS base frequency
 	// in RX and controls the digital complex mixer in the demodulator. Multiplied by Fxtal/2^10
 	// Here 0.3046875 MHz (lowest point below 310 kHz)
-	radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);
+	
+	//radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
 	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_FSCTRL1, 0x08); // Freq synthesizer control.
 
@@ -558,7 +420,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	// FREQ1 is FREQ[15..8]
 	// FREQ0 is FREQ[7..0]
 	// Fxtal = 26 MHz and FREQ = 0x10A762 => Fo = 432.99981689453125 MHz
-	radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
+	//radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
@@ -580,7 +442,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//      Factory defaults: M=0, E=1 => BW = 26/128 ~ 203 kHz
 	// Low nibble:
 	// . bits 3:0: 13 -> DRATE_E: data rate base 2 exponent => here 13 (multiply by 8192)
-	reg_word = (radio_parms->chanbw_e << 6) + (radio_parms->chanbw_m << 4) + radio_parms->drate_e;
+	//reg_word = (radio_parms->chanbw_e << 6) + (radio_parms->chanbw_m << 4) + radio_parms->drate_e;
 	//PI_CC_SPIWriteReg( PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
 	PI_CC_SPIWriteReg(PI_CCxxx0_MDMCFG4, CC1101_DEFVAL_MDMCFG4); // Modem configuration.
 
@@ -626,7 +488,7 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//
 	//   OOK      : No effect
 	//    
-	reg_word = (radio_parms->deviat_e << 4) + (radio_parms->deviat_m);
+	//reg_word = (radio_parms->deviat_e << 4) + (radio_parms->deviat_m);
 	PI_CC_SPIWriteReg(PI_CCxxx0_DEVIATN, CC1101_DEFVAL_DEVIATN); // Modem dev (when FSK mod en)
 
 	// MCSM2: Main Radio State Machine. See documentation.
@@ -831,11 +693,6 @@ int init_radio(radio_parms_t *radio_parms, arguments_t *arguments)
 	//PI_CC_SPIWriteReg( PI_CCxxx0_TEST0,    0x09); // Various test settings.
 	PI_CC_SPIWriteReg(PI_CCxxx0_TEST0, CC1101_DEFVAL_TEST0); // Various test settings.
 
-	if (arguments->verbose_level > 0)
-	{
-		print_radio_parms(radio_parms);
-	}
-
 	return 0;
 }
 
@@ -889,34 +746,6 @@ int  print_radio_status()
 
 
 // ------------------------------------------------------------------------------------------------
-// Print actual radio link parameters once initialized
-//   o Operating frequency ..: Fo   = (Fxosc / 2^16) * FREQ[23..0]
-//   o Channel spacing ......: Df   = (Fxosc / 2^18) * (256 + CHANSPC_M) * 2^CHANSPC_E
-//   o Channel bandwidth ....: BW   = Fxosc / (8 * (4+CHANBW_M) * 2^CHANBW_E)
-//   o Data rate (Baud) .....: Rate = (Fxosc / 2^28) * (256 + DRATE_M) * 2^DRATE_E
-//   o Deviation ............: Df   = (Fxosc / 2^17) * (8 + DEVIATION_M) * 2^DEVIATION_E
-
-void print_radio_parms(radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	fprintf(stderr, "\n--- Actual radio channel parameters ---\n");
-	fprintf(stderr, "Operating frequency ....: %.3f MHz (W=%d)\n",
-		((radio_parms->f_xtal / 1e6) / (1 << 16))*radio_parms->freq_word, radio_parms->freq_word);
-	fprintf(stderr, "Intermediate frequency .: %.3f kHz (W=%d)\n",
-		((radio_parms->f_xtal / 1e3) / (1 << 10))*radio_parms->if_word, radio_parms->if_word);
-	fprintf(stderr, "Channel spacing ........: %.3f kHz (M=%d, E=%d)\n",
-		((radio_parms->f_xtal / 1e3) / (1 << 18))*(256 + radio_parms->chanspc_m)*(1 << radio_parms->chanspc_e), radio_parms->chanspc_m, radio_parms->chanspc_e);
-	fprintf(stderr, "Channel bandwidth.......: %.3f kHz (M=%d, E=%d)\n",
-		(radio_parms->f_xtal / 1e3) / (8 * (4 + radio_parms->chanbw_m)*(1 << radio_parms->chanbw_e)), radio_parms->chanbw_m, radio_parms->chanbw_e);
-	fprintf(stderr, "Data rate ..............: %.1f Baud (M=%d, E=%d)\n",
-		radio_get_rate(radio_parms), radio_parms->drate_m, radio_parms->drate_e);
-	fprintf(stderr, "Deviation ..............: %.3f kHz (M=%d, E=%d)\n",
-		((radio_parms->f_xtal / 1e3) / (1 << 17)) * (8 + radio_parms->deviat_m) * (1 << radio_parms->deviat_e), radio_parms->deviat_m, radio_parms->deviat_e);
-	fprintf(stderr, "Byte time ..............: %d us\n",
-		((uint32_t)radio_get_byte_time(radio_parms)));
-}
-
-// ------------------------------------------------------------------------------------------------
 // Set packet length
 int radio_set_packet_length(uint8_t pkt_len)
 // ------------------------------------------------------------------------------------------------
@@ -943,40 +772,22 @@ float radio_get_rate(radio_parms_t *radio_parms)
 }
 
 // ------------------------------------------------------------------------------------------------
-// Get the time to transmit or receive a byte in microseconds
-float radio_get_byte_time(radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	float base_time = 8000000.0 / radio_get_rate(radio_parms);
-
-	if (radio_parms->modulation == RADIO_MOD_FSK4)
-	{
-		base_time /= 2.0;
-	}
-
-	return base_time;
-}
-
-// ------------------------------------------------------------------------------------------------
-// Wait for approximately an amount of 2-FSK symbols bytes
-void radio_wait_a_bit(uint32_t amount)
-// ------------------------------------------------------------------------------------------------
-{
-	usleep(amount * radio_int_data.wait_us);
-}
-
-// ------------------------------------------------------------------------------------------------
 // Wait for the reception or transmission to finish
 void radio_wait_free()
 // ------------------------------------------------------------------------------------------------
 {
-	/*nutiu fixme - packet_receive is not used any more.
-	//we should check the gpio ? or do we need this wait_free at all ?
-	while((radio_int_data.packet_receive) || (radio_int_data.packet_send))
+	uint8_t timeout = 0;
+	while((radio_int_data.mode == RADIOMODE_TX) || (radio_int_data.packet_receive) || (radio_int_data.packet_send))
 	{
-		radio_wait_a_bit(4);
+		usleep(50);
+		timeout ++;
+		if (timeout > RADIO_WATCHDOG_TIMEOUT/50){
+			//we should reset the radio - it must be hanging
+			printf("ERROR: Tx/Rx IRQ state change timer expired. Resetting radio");
+			reset_radio();
+			return;
+		}
 	}
-	*/
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -985,7 +796,6 @@ void radio_init_rx()
 // ------------------------------------------------------------------------------------------------
 {
 	radio_int_data.mode = RADIOMODE_RX;
-	//PI_CC_SPIWriteReg( PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config RX mode
 	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
@@ -995,7 +805,7 @@ uint8_t radio_process_packet() {
 	uint8_t no_of_packets = 0;
 	while (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx) { //packets have been received and are waiting processing
 		circular_incr(radio_int_data.rx_buff_read_idx);
-		verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
+		//verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		char buff[512];
 		verbprintf(3, "RCV: SW packet: %s", swPacket.asString(buff));
@@ -1030,13 +840,13 @@ uint8_t radio_process_packet() {
 			// Query not addressed to us?
 			if (swPacket.destAddr != MASTER_ADDRESS)
 				break;
-			// Current version does not support data recording mode
-			// so destination address and register address must be the same
 			if (swPacket.destAddr != swPacket.regAddr)
 				break;
-			break;
-		case SWAPFUNCT_STA:
-			// User callback function declared?
+			/*if (swPacket.regId == REGI_DEVADDRESS){
+				printf("Address request ");
+				int newNodeAddr = registerNewNode();
+				//SWCOMMAND response = SWCOMMAND(0,0,REGI_DEVADDRESS,&newNodeAddr, 1);
+			}*/
 			break;
 		default:
 			break;
@@ -1045,87 +855,55 @@ uint8_t radio_process_packet() {
 	return no_of_packets;
 }
 
-// ------------------------------------------------------------------------------------------------
-// Transmission of a block
+// Transmission of a data packet
 bool tx_handler()
-// ------------------------------------------------------------------------------------------------
 {
-	int i, ret;
-	radio_int_data.packet_send = 0;
-	verbprintf(1, "tx handler\n");
 	//look if there is anything to be sent in the tx buff
 	if (radio_int_data.tx_buff_idx_sent == radio_int_data.tx_buff_idx_ins) { //nothing added to the buff, return
 		return true;
-	}
-	else {
+	}else {
+		int ret;
 		while (radio_int_data.tx_buff_idx_sent != radio_int_data.tx_buff_idx_ins) {
 			//send all packets from the buffer
-			verbprintf(1, "tx packet\n");
-			volatile CCPACKET *packet = &tx_ccpacket_buf[radio_int_data.tx_buff_idx_sent++];
-			if (radio_int_data.tx_buff_idx_sent == BUFF_SIZE)
-				radio_int_data.tx_buff_idx_sent = 0;
-			//radio_set_packet_length( packet->length);
-			radio_int_data.mode = RADIOMODE_TX;
-			PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, 0x02); // GDO2 output pin config TX mode
+			verbprintf(1, "Tx packet\n");
+			circular_incr(radio_int_data.tx_buff_idx_sent);
+			CCPACKET *packet = &tx_ccpacket_buf[radio_int_data.tx_buff_idx_sent];
+			
+			radio_wait_free();
+			//PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, 0x02); // GDO2 output pin config TX mode
+			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
 			PI_CC_SPIStrobe(PI_CCxxx0_SFTX); //flush the fifo buffer
-			// Set data length at the first position of the TX FIFO
-			//writeReg(PI_CCxxx0_TXFIFO,  packet->length);
-			// Write data into the TX FIFO
-			//writeBurstReg(PI_CCxxx0_TXFIFO, packet->data, packet->length);
-
-			PI_CC_SPIWriteReg(PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
+			
+			//PI_CC_SPIWriteReg(PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
+			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, &packet->length, 1); //must write burst or the radio hangs
 			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, (uint8_t *)packet->data, packet->length); //write the payload data
-
+			
+			radio_int_data.mode = RADIOMODE_TX; //incoming interrupt mush be handled as TX 
+			
 			PI_CC_SPIStrobe(PI_CCxxx0_STX); // Kick-off Tx
-
-			// Check that TX state is being entered (state = RXTX_SETTLING)
-			//nutiu todo: check transmission complete
-			if (!wait_for_tx_end(10)) {
+			if (!wait_for_tx_end(20)) {
 				//timeout
-				return false;
+				printf("ERROR: transmit failed");
 			}; // Wait max 10ms
-			PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
-
-			/* nutiu needed ??
-			// Wait for the sync word to be transmitted
-			wait_GDO0_high();
-
-			// Wait until the end of the packet transmission
-			wait_GDO0_low();
-
-
-			// Check that the TX FIFO is empty
-			if((readStatusReg(CC1101_TXBYTES) & 0x7F) == 0)
-				res = true;
-
-			setIdleState();       // Enter IDLE state
-
-			// Enter back into RX state
-			setRxState();
-			nutiu needed ?? */
-			//check if we reached RX state again. The modem should switch to RX automatically after TX if the MCSM1 is set correctly 
-			if (!wait_for_state(CCxxx0_STATE_RX, 10)) {
-				//timeout
-				return false;
-			};
-
-			//radio_wait_a_bit(4);
-			print_block(4, (uint8_t *)packet->data, packet->length);
+			//radio_wait_free();
+			//PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
+			packet->printAsHex();
 			verbprintf(2, "Tx: sent %d bytes\n", packet->length);
-			// Declare to be in Rx state
+			if (!wait_for_state(CCxxx0_STATE_RX, 50)) {
+				//timeout
+				reset_radio(); //should never happend, but if, at least try to leave the radio in a defined state
+				return false;
+			};			
 		}
+		// Declare to be in Rx state
 		radio_int_data.mode = RADIOMODE_RX;
 		return true;
 	}
 }
 
 
-bool transmit_packet(CCPACKET* p_packet) { //sends a radio packet 
-	tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].copy(p_packet);
-	//increment the buff counter
-	if (radio_int_data.tx_buff_idx_ins >= BUFF_SIZE)
-		radio_int_data.tx_buff_idx_ins = 0; //circular buffer
-	else
-		radio_int_data.tx_buff_idx_ins += 1;
+bool transmit_packet(SWPACKET* p_packet) { //sends a radio packet 
+	circular_incr(radio_int_data.tx_buff_idx_ins);
+	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
 	tx_handler();
 }

@@ -20,17 +20,6 @@ typedef enum test_mode_e {
 
 extern char const *test_mode_names[];
 
-typedef enum modulation_e {
-    MOD_OOK,
-    MOD_FSK2,
-    MOD_FSK4,
-    MOD_MSK,
-    MOD_GFSK,
-    NUM_MOD
-} modulation_t;
-
-extern char const *modulation_names[];
-
 typedef enum rate_e {
     RATE_50,
     RATE_110,
@@ -74,13 +63,10 @@ typedef struct arguments_s {
     // --- spi link radio ---
     char         *spi_device;          // CC1101 SPI device
     uint8_t      print_radio_status;   // Print radio status and exit
-    modulation_t modulation;           // Radio modulation scheme
     rate_t       rate;                 // Data rate (Baud)
     float        rate_skew;            // Data rate skew multiplier from nominal
-    float        modulation_index;     // Modulation index
     uint32_t     freq_hz;              // Frequency in Hz
     test_mode_t  test_mode;            // Enter testing mode with specified test scheme 
-    char         *test_phrase;         // Test phrase to transmit
     uint8_t      test_rx;              // Reception test. Exits after receiving number of repetition packets
     uint8_t      repetition;           // Repetition factor
     uint8_t      whitening;            // Activate whitening

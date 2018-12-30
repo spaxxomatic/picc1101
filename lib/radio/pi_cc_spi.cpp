@@ -307,7 +307,7 @@ int PI_CC_SPIReadBurstReg( uint8_t addr, byte* buffer, uint8_t count)
         return 1;
     }
 
-    memcpy(buffer, &spi_parms->rx, count);
+    memcpy(buffer, &spi_parms->rx[1], count);
     return 0;
 }
 
