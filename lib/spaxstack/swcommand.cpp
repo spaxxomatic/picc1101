@@ -46,5 +46,6 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte *val, byte le
   regId = registerId;
   value.data = val;
   value.length = len;
+  value.is_string = false;
 }
 

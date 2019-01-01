@@ -18,4 +18,16 @@ enum STACK_ERRORCODES
     STACKERR_WRONG_DEST_ADDR //a packet with an address different from this radio address has reached the stack. This should not happend when addr check is enabled in the radio
 };
 int registerNewNode();
+
+enum CUSTOM_REGINDEX                    
+{                                       
+  REGI_PRODUCTCODE = 0,                 
+  REGI_HWVERSION,                     
+  REGI_FWVERSION,                  
+  REGI_FREQCHANNEL,                     
+  REGI_NETWORKID,                       
+  REGI_DEVADDRESS,                      
+  REGI_TXINTERVAL,
+};
+
 #endif

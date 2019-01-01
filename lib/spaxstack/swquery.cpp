@@ -44,5 +44,6 @@ SWQUERY::SWQUERY(byte dAddr, byte rAddr, byte rId)
   regId = rId;
   value.data = NULL;
   value.length = 0;
+  value.is_string = false;
 }
 

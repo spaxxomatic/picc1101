@@ -1,13 +1,19 @@
 #ifndef __MQTT_H
 #define __MQTT_H
 
-
+#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
+#include <string>
+#include "lib/types.h"
 #include "lib/mqtt/mosquitto.h"
+#include "lib/spaxstack/swpacket.h"
 
 void mqtt_stop();
 bool mqtt_init();
 int mqtt_send(char* topic, char* msg);
+int mqtt_send_actor_state(int actor_id, int register_addr, SWDATA* data);
 
 enum MQTT_ERRORCODES 
 {
@@ -16,14 +22,6 @@ enum MQTT_ERRORCODES
     MQTT_ERR_INVALID_PAYLOAD,
     MQTT_ERR_INVALID_REGISTER_ID,
     MQTT_ERR_INVALID_REGISTER_VAL
-};
-
-const char* MQTT_ERR_MSG[MQTT_ERR_INVALID_REGISTER_VAL+1] = {
-    NULL, 
-    "Invalid actor ID", 
-    "Invalid payload. Should be in format <register_addr>:<register_value>",
-    "Invalid register ID", 
-    "Invalid register value", 
 };
 
 #endif

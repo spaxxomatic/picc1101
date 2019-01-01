@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sstream>
 //when compiling in mocked mode, include the mock and disable the global include
 #ifdef _MOCKED
 #include "../../mocks/wiringPi.h"
@@ -20,6 +21,7 @@
 #endif
 
 #include "params.h"
+#include "../../mqtt.h"
 #include "../../util.h"
 #include "radio.h"
 #include "pi_cc_spi.h"
@@ -148,10 +150,10 @@ void irq_handle_packet(void) {
 	else if (radio_int_data.mode == RADIOMODE_TX) {
 		if (int_line) {
 			radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
-			verbprintf(3, "TX R IRQ\n");
+			//verbprintf(3, "TX R IRQ\n");
 		}
 		else {
-			verbprintf(3, "TX F IRQ\n");
+			//verbprintf(3, "TX F IRQ\n");
 			if (radio_int_data.packet_send) // packet has been sent
 			{
 				radio_int_data.mode = RADIOMODE_TX_END; //the mode has to be set 
@@ -799,6 +801,10 @@ void radio_init_rx()
 	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
+/*
+* radio_process_packet
+* decode a received packet
+*/
 uint8_t radio_process_packet() {
 	if (radio_int_data.rx_buff_idx == radio_int_data.rx_buff_read_idx)
 		return 0; //nothing to do, no new packets in the receive buffer. This should actually not happend.
@@ -806,12 +812,31 @@ uint8_t radio_process_packet() {
 	while (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx) { //packets have been received and are waiting processing
 		circular_incr(radio_int_data.rx_buff_read_idx);
 		//verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
+		//rx_ccpacket_buf[radio_int_data.rx_buff_read_idx].printAsHex();
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		char buff[512];
-		verbprintf(3, "RCV: SW packet: %s", swPacket.asString(buff));
+		verbprintf(3, "RCV: SW packet: %s", swPacket.as_string(buff));
 		no_of_packets++;
 		switch (swPacket.function)
 		{
+		case SWAPFUNCT_STA: //status update
+			if (swPacket.destAddr == MASTER_ADDRESS || swPacket.destAddr == BROADCAST_ADDRESS) {
+					//std::string val; 
+					//val.insert(0, swPacket.value.data, swPacket.value.length);
+					//val.c_str();
+					/* a buffer for holding a string representation of the payload */
+					char valbuff[sizeof(CCPACKET::data)];
+					swPacket.val_to_string(valbuff);
+					verbprintf(2,"Received stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
+					
+					//not very elegant to directly send to mqtt, but for now let's leave it so
+					//We should rather use a buffer and decouple packet decode from sending responses
+					//std::ostringstream s_msg;
+					//s_msg << std::to_string(swPacket.regId) << ':' << valbuff;
+					//const std::string msg = s_msg.str();
+					mqtt_send_actor_state(swPacket.srcAddr, swPacket.regId, &swPacket.value);
+			}
+			break;			
 		case SWAPFUNCT_ACK:
 			if (swPacket.destAddr != MASTER_ADDRESS) {
 				if (commstack.stackState == STACKSTATE_WAIT_ACK) {

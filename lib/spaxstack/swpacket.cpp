@@ -26,28 +26,9 @@
 #include "spaxstack.h"
 #include <stdio.h>
 #include "../../util.h"
+#include "../types.h"
+#include "memory.h"
 
-/**
- * SWPACKET
- * 
- * Class constructor for transmission
- * 
- * 'packet'	Raw CC1101 packet
- */
-/*
-SWPACKET::SWPACKET(byte destAddr, byte function, byte regId, SWDATA data ) 
-{
-  this->destAddr = destAddr;
-  this->srcAddr = MASTER_ADDRESS;
-  this->hop = 0;
-  this->packetNo = 0;
-  this->function = function;
-  this->regAddr = packet->data[5];
-  regId = packet->data[6];
-  value.data = packet->data + 7;
-  value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
-}
-*/
 /**
  * SWPACKET
  * 
@@ -55,9 +36,8 @@ SWPACKET::SWPACKET(byte destAddr, byte function, byte regId, SWDATA data )
  * 
  * 'packet'	Raw CC1101 packet
  */
-SWPACKET::SWPACKET(volatile CCPACKET* packet) 
+SWPACKET::SWPACKET(CCPACKET* packet) 
 {
-//TODO: cleanup
   destAddr = packet->data[0];
   srcAddr = packet->data[1];
   hop = (packet->data[2] >> 4) & 0x0F;
@@ -67,6 +47,9 @@ SWPACKET::SWPACKET(volatile CCPACKET* packet)
   regId = packet->data[6];
   value.data = packet->data + 7;
   value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
+  
+  //lsb of data[2] indicates the data type, 1->string, 0->number
+  value.is_string = bitRead(packet->data[2], 0);
 }
 
 /**
@@ -98,16 +81,35 @@ void SWPACKET::prepare(CCPACKET* packet)
   packet->data[4] = function;
   packet->data[5] = regAddr;
   packet->data[6] = regId;
-
+  
+  if (value.is_string){
+    bitSet(packet->data[2], 0);
+  }
   for(i=0 ; i<value.length ; i++)
     packet->data[i+7] = value.data[i];
 
-  //commstack.sentPacketNo += 1; //increment packet number for next transmission
-  //commstack.stackState = STACKSTATE_WAIT_ACK;
 }
 
 
-char* SWPACKET::asString(char* buffer){
-  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i\n ", destAddr, srcAddr, packetNo, function, regAddr, regId, value.length);
+char* SWPACKET::as_string(char* buffer){
+  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i\n ", 
+  destAddr, srcAddr, packetNo, function, regAddr, regId, value.length);
+  return buffer;
+}
+
+char* SWPACKET::val_to_string(char* buffer){
+  if (value.is_string){
+    memcpy(buffer, value.data, value.length);
+    buffer[value.length] = '0'; //terminate string
+  }else{
+    if (value.length == 2){
+      sprintf(buffer, "%ld", (unsigned long) *value.data);
+    }else if (value.length == 1){
+      sprintf(buffer, "%d", (unsigned int) *value.data);
+    }else{
+      //invalid value, an integer of length > 2 is not supported
+      sprintf(buffer, "invalid numeric value of len %d", value.length);
+    }
+  }
   return buffer;
 }

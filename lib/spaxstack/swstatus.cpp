@@ -44,6 +44,7 @@ SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len)
   regId = registerId;
   value.length = len;
   value.data = val;
+  value.is_string = false;
 }
 
 /**

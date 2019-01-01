@@ -33,6 +33,7 @@ list_obj:
 	@echo $(OBJ) 
 
 DEP = $(OBJ:.o=.d)
+-include $(OBJ:.o=.d)
 
 CC := g++ -g3
 
@@ -45,7 +46,7 @@ clean:
 prepare:
 	$(MD) -p $(TARGET_DIR)
 
-VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC))
+#VPATH = $(dir $(MOCK_FILES)) $(dir $(SRC))
 build: $(SRC) $(OBJ) 
 
 link:
