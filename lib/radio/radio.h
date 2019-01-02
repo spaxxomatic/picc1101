@@ -32,8 +32,6 @@ extern sem_t sem_radio_irq;
 #define TX_FIFO_REFILL 60 // With the default FIFO thresholds selected this is the number of bytes to refill the Tx FIFO
 #define RX_FIFO_UNLOAD 59 // With the default FIFO thresholds selected this is the number of bytes to unload from the Rx FIFO
 
-#define RADIO_BUFSIZE (1<<16)   // 256 max radio block size times a maximum of 256 radio blocs
-
 typedef enum sync_word_e
 {
     NO_SYNC = 0,              // No preamble/sync
@@ -77,7 +75,7 @@ typedef enum radio_errors_e {
 typedef struct
 {
 	uint8_t code; 	
-    char* description;  
+    const char* description;  
 } CODE_TO_DESCR;	
 
 typedef enum radio_mode_e
@@ -126,7 +124,7 @@ int      print_radio_status();
 int      radio_set_packet_length( uint8_t pkt_len);
 uint8_t  radio_get_packet_length();
 float    radio_get_rate(radio_parms_t *radio_parms);
-float    radio_get_byte_time(radio_parms_t *radio_parms);
+
 void     radio_wait_free();
 
 bool     tx_handler();

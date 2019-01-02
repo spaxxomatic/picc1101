@@ -61,12 +61,13 @@ struct SWDATA
     /**
      * Data buffer
      */
-    volatile byte *data;
-
+    byte *chardata;
+    long int bytedata;
     /**
      * Data length
      */
     byte length;
+    bool is_string;
 };
 
 class SWPACKET 
@@ -119,7 +120,7 @@ class SWPACKET
      * 
      * 'packet'	Raw CC1101 packet
      */
-    SWPACKET(volatile CCPACKET* packet);
+    SWPACKET(CCPACKET* packet);
 
     /**
      * SWPACKET
@@ -138,7 +139,8 @@ class SWPACKET
      *  False otherwise
      */
     void prepare(CCPACKET* packet);
-    char* asString(char* buffer);
+    char* as_string(char* buffer);
+    char* val_to_string(char* buffer);
 };
 
 #endif

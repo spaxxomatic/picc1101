@@ -43,7 +43,8 @@ SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len)
   regAddr = MASTER_ADDRESS;
   regId = registerId;
   value.length = len;
-  value.data = val;
+  value.chardata = val;
+  value.is_string = true;
 }
 
 /**

@@ -23,7 +23,11 @@
  */
 
 #include "swcommand.h"
+#include <stdlib.h>
 #include "spaxstack.h"
+#include <ctype.h>
+#include <string.h>
+
 
 /**
  * SWCOMMAND
@@ -36,7 +40,7 @@
  * '*val'	    New value
  * 'len'	    Buffer length
  */
-SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte *val, byte len)
+SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte val)
 {
   destAddr = dAddr;
   srcAddr = MASTER_ADDRESS;
@@ -44,7 +48,20 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte *val, byte le
   function = SWAPFUNCT_CMD;
   regAddr = rAddr;
   regId = registerId;
-  value.data = val;
-  value.length = len;
+  value.bytedata = val;
+  value.length = 1;
+  value.is_string = false;
 }
 
+SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, char* val, int length)
+{
+  destAddr = dAddr;
+  srcAddr = MASTER_ADDRESS;
+  hop = 0;
+  function = SWAPFUNCT_CMD;
+  regAddr = rAddr;
+  regId = registerId;
+  value.chardata = (byte*) val;
+  value.length = length;
+  value.is_string = true;
+}

@@ -58,7 +58,6 @@
 #include "../types.h"
 #include "memory.h"
 
-
 #include "pi_cc_spi.h"
 #include "pi_cc_cc1101.h"
 

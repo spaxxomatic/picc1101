@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <iostream>
 #include <string>
 #include <regex>
 #include <stdlib.h>
@@ -20,65 +21,181 @@ struct mosquitto *mosq = NULL;
 
 static std::string subscribe_actors_topic;
 static std::string subscribe_config_topic;
-static std::string subscribe_radionodes_descr_topic;
+static std::string subscribe_radionodes_stat_topic;
 static std::string subscribe_stat_topic;
+static std::string publish_status_topic;
+static std::string errorlog_topic;
 static std::string client_name;
 static std::string publish_to;
-// ------------------------------------------------------------------------------------------------
-// Initialize the server, read ini file, init mqtt, etc
-std::string get_actor_id_from_topic(std::string &prefix, char* topic){
-    std::regex e (prefix + "(.*)");   // matches words beginning by "sub"
-    std::string actor_id = std::regex_replace (topic,e,"$1");
-    //printf("actor id %s", actor_id.c_str());
-    return actor_id;
+
+typedef struct  {
+    byte actorId;
+    byte regId;
+} actorRegister ;
+
+typedef struct  {
+    char regId;
+    char regVal;
+} payloadRegister ;
+
+const char* MQTT_ERR_MSG[MQTT_ERR_INVALID_TOPIC+1] = {
+    NULL, 
+    "Invalid actor ID", 
+    "Invalid payload. Should be in format <register_addr>:<register_value>",
+    "Invalid register ID", 
+    "Invalid register value", 
+    "Malformed topic. Must be in format <actorId>/<registerId>",
+};
+
+#define CK_VALID_UINT8_T(V, ERR_CODE)  if (V <0 || V  >= 0xFF) throw(MQTT_ERR_MSG[ERR_CODE]);
+
+class mqtt_msg_ex: public exception
+{
+  public:
+  const char* reason;
+  mqtt_msg_ex(const char* r) {
+      this->reason = r;
+  }
+  virtual const char* what() const throw()
+  {
+    return reason;
+  }
+} ;
+
+int mqtt_send_actor_state(int actor_id, int register_addr, SWDATA* data){    
+    std::ostringstream topic;
+    topic << publish_status_topic <<  std::to_string(actor_id) << "/" << std::to_string(register_addr) ;
+    if (data->is_string){
+        return mosquitto_publish(mosq, NULL, topic.str().c_str(), data->length, data->chardata, 2, true);
+    }else{
+        std::string decimalVal = std::to_string(data->bytedata);
+        return mosquitto_publish(mosq, NULL, topic.str().c_str(), decimalVal.length(), decimalVal.c_str(), 2, true);
+    }
 }
 
-void handle_actor_message(std::string actor_id, std::string payload){
-    printf("handle_actor_message %s %s\n", actor_id.c_str(), payload.c_str() );
-    byte destAddr = 01;
-    byte registerId = 02;
-    SWCOMMAND command = SWCOMMAND(destAddr, MASTER_ADDRESS, registerId, (byte*) payload.c_str(), (byte) payload.length());
+int mqtt_send(const char* topic, const char* msg){
+    return mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 1, true);
+}
+
+/*
+bool decode_actor_payload(std::string &payload, payloadRegister* ret){
+    std::regex e ("([0-9]+):([0-9]+)");
+    std::smatch pieces_match;
+    if (std::regex_match(payload, pieces_match, e)) {
+        if (pieces_match.size() != 3){
+            throw mqtt_msg_ex(MQTT_ERR_MSG[MQTT_ERR_INVALID_PAYLOAD]);
+        }else{
+            std::ssub_match p1 = pieces_match[1];
+            std::ssub_match p2 = pieces_match[2];
+            std::string rAddr = p1.str();
+            std::string rVal = p2.str();
+            std::cout << "  Reg: " << rAddr << " Val: " << rVal << '\n';  
+            ret->regId = std::stoi( rAddr ); 
+            ret->regVal = std::stoi( rVal );
+            return true;
+        }   
+    }
+}
+*/
+
+int handle_actor_message(actorRegister* areg, std::string payload){
+    printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
+    int regValue = std::stoi(payload);//decode_actor_payload(payload, &res);
+    SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
     transmit_packet(&command);
-    };
+    return MQTT_OK;
+}    
 
-void handle_radionodes_descr(std::string actor_id, std::string payload){
-    printf("handle_radionodes_descr %s %s\n", actor_id.c_str(), payload.c_str() );
+int handle_radionodes_stat(actorRegister* areg, std::string payload){
+    //printf("handle_radionodes_descr %i %s\n", actor_id, payload.c_str() );    
+    SWQUERY query = SWQUERY(areg->actorId, areg->actorId, areg->regId);
+    transmit_packet(&query);
+    return MQTT_OK;
 };
 
-void handle_config_message(std::string actor_id, std::string payload){
-    printf("handle_config_message %s %s\n", actor_id.c_str(), payload.c_str() );
+int handle_config_message(actorRegister* areg, std::string payload){
+    //TODO implement me
+    printf("handle_config_message %i %s\n", areg->actorId, payload.c_str() );
+    return MQTT_OK;
 };
 
-void handle_stat_message(){
+int handle_stat_message(){
     printf("handle_stat_message \n");
     printf("--- Radio state ---\n");
     print_radio_status();
+    return MQTT_OK;
 };
+
+void logError(const struct mosquitto_message *message, const char* source, const char* errmsg){
+    std::string payload = std::string((char*) message->payload, message->payloadlen);
+ 	verbprintf(3,"Topic: %s Payload: %s\n", message->topic, payload.c_str());
+
+    std::ostringstream stringStream;
+    stringStream << "ERROR: mqtt exception on msg " << message->topic << " with payload >" << payload << "< : " << source << " " << errmsg;
+    std::string em = stringStream.str();
+    fprintf(stderr, "%s\n",em.c_str());
+    //log the error on the mqtt server
+    mqtt_send(errorlog_topic.c_str(), em.c_str());    
+}
+
+void handle_message(const struct mosquitto_message *message){
+    //std::regex e (prefix + "(.*)");  
+    //std::string actor_id = std::regex_replace (topic,e,"$1");
+    //return std::stoi(actor_id);     // raises an exception if not an int
+    
+	std::string payload = std::string((char*) message->payload, message->payloadlen);
+ 	verbprintf(3,"Topic: %s Payload: %s\n", message->topic, payload.c_str());
+	std::string topic = std::string(message->topic);
+    
+    //stat message does not have any params and is not routed to radio
+    if (topic.compare(0,subscribe_stat_topic.length(), subscribe_stat_topic)==0) 
+    {
+        handle_stat_message(); 
+        return ;
+    }
+    
+    static std::regex e ("^([A-Z]+/[A-Z]+/)([0-9]+)/([0-9]+)");
+    
+    std::smatch pieces_match;
+    actorRegister areg;
+    if (std::regex_match(topic, pieces_match, e)) {
+        if (pieces_match.size() != 4){
+            throw mqtt_msg_ex(MQTT_ERR_MSG[MQTT_ERR_INVALID_TOPIC]);
+        }else{
+            std::ssub_match ptopic = pieces_match[1];
+            std::ssub_match p1 = pieces_match[2];
+            std::ssub_match p2 = pieces_match[3];
+            std::string strTopic = ptopic.str();
+            std::string rActorId = p1.str();
+            std::string rRegId = p2.str();
+            std::cout << "  ActorId: " << rActorId << " Reg: " << rRegId << '\n';  
+            areg.actorId = std::stoi( p1.str() ); 
+            areg.regId = std::stoi(  p2.str() );
+            CK_VALID_UINT8_T(areg.actorId,MQTT_ERR_INVALID_ACTOR_ID);    
+            CK_VALID_UINT8_T(areg.regId,MQTT_ERR_INVALID_REGISTER_ID);            
+            if (subscribe_actors_topic == strTopic)
+                handle_actor_message(&areg, payload);
+            else if (subscribe_config_topic == strTopic)
+                handle_config_message(&areg, payload);
+            else if (subscribe_radionodes_stat_topic == strTopic)
+                handle_radionodes_stat(&areg, payload);            
+        }   
+    }
+}
 
 void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
-    verbprintf(3,"Msg: Thread id %i\n",getpid());    
-	std::string payload =std::string((char*) message->payload, message->payloadlen);
- 	verbprintf(3,"Topic: %s Payload: %s\n", message->topic, payload.c_str());
-	std::string topic = std::string(message->topic);
-    if (topic.compare(0,subscribe_actors_topic.length(), subscribe_actors_topic)==0){
-        //actor message incoming, needs to be routed to the corresponding device
-        handle_actor_message(get_actor_id_from_topic(subscribe_actors_topic,message->topic), payload);
-        return;
-    }else if (topic.compare(0,subscribe_config_topic.length(), subscribe_config_topic)==0)
-    {
-        handle_config_message(get_actor_id_from_topic(subscribe_config_topic,message->topic), payload);
-        return;
-    }else if (topic.compare(0,subscribe_radionodes_descr_topic.length(), subscribe_radionodes_descr_topic)==0)
-    {
-        handle_radionodes_descr(get_actor_id_from_topic(subscribe_radionodes_descr_topic,message->topic), payload);
-        return;
-    }else if (topic.compare(0,subscribe_stat_topic.length(), subscribe_stat_topic)==0)
-    {
-        handle_stat_message();
-        return;
+    std::string errmsg ;
+    try{
+        handle_message(message);
+    } catch (const std::invalid_argument& ex){
+        logError(message, "Invalid argument: ", ex.what());
+    } catch (const mqtt_msg_ex& ex){
+        logError(message, "MQTT format error: ", ex.what());
+    } catch (const std::exception& ex) {    
+        logError(message, "Generic exception: ", ex.what());
     }
-    ;
+
 }
 
 void subscribe_topic(std::string topic, int qos){
@@ -96,20 +213,8 @@ void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
         /* Subscribe to broker information topics on successful connect. */
         subscribe_topic(subscribe_actors_topic,1);
         subscribe_topic(subscribe_config_topic,1);
-        subscribe_topic(subscribe_radionodes_descr_topic,2);
+        subscribe_topic(subscribe_radionodes_stat_topic,2);
         subscribe_topic(subscribe_stat_topic,1);
-        /*
-         char* t1 = strdup((subscribe_actors_topic + "#").c_str());
-         char* t2 = strdup((subscribe_config_topic + "#").c_str());
-         char* t3 = strdup((subscribe_radionodes_descr_topic + "#").c_str());
-         char* t4 = strdup((subscribe_stat_topic + "#").c_str());
-        verbprintf(3,"Subscribing to %s %s %s \n",t1, t2, t3);
-        mosquitto_subscribe(mosq, NULL, t1, 1);
-        mosquitto_subscribe(mosq, NULL, t2, 1);
-        mosquitto_subscribe(mosq, NULL, t3, 2);
-        mosquitto_subscribe(mosq, NULL, t4, 1);
-        free(t1); free(t2); free(t3); free(t4);
-        */
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -152,14 +257,25 @@ bool mqtt_init(){
     if(subscribe_stat_topic == UNDEF){
         die("Missing subscribe_stat_topic in mqtt section of ini file");
     }       
-    subscribe_radionodes_descr_topic.assign(inireader->Get("mqtt","subscribe_radionodes_descr_topic", UNDEF));    
-    if(subscribe_radionodes_descr_topic == UNDEF){
-        die("Missing subscribe_radionodes_descr_topic in mqtt section of ini file");
+    subscribe_radionodes_stat_topic.assign(inireader->Get("mqtt","subscribe_radionodes_stat_topic", UNDEF));    
+    if(subscribe_radionodes_stat_topic == UNDEF){
+        die("Missing subscribe_radionodes_stat_topic in mqtt section of ini file");
+    }   
+    
+    publish_status_topic.assign(inireader->Get("mqtt","publish_status_topic", UNDEF));    
+    if(publish_status_topic == UNDEF){
+        die("Missing publish_status_topic in mqtt section of ini file");
     }    
-    client_name = inireader->Get("mqtt","subscribe_radionodes_descr_topic", "SPAXXSERVER");    
+
+    errorlog_topic.assign(inireader->Get("mqtt","errorlog_topic", UNDEF));    
+    if(errorlog_topic == UNDEF){
+        die("Missing errorlog_topic in mqtt section of ini file");
+    }        
+    
+    client_name = inireader->Get("mqtt","client_name", "SPAXXSERVER");    
     mosquitto_lib_init();
 
-    mosq = mosquitto_new(NULL, true, NULL);
+    mosq = mosquitto_new(client_name.c_str(), true, NULL);
     if(!mosq){
         fprintf(stderr, "Error: Out of memory.\n");
         return false;
@@ -184,6 +300,3 @@ bool mqtt_init(){
     return true;
 };
 
-int mqtt_send(char* topic, char* msg){
-    return mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 1, true);
-}

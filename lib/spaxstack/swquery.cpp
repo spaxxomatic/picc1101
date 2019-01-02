@@ -42,7 +42,8 @@ SWQUERY::SWQUERY(byte dAddr, byte rAddr, byte rId)
   function = SWAPFUNCT_QRY;
   regAddr = rAddr;
   regId = rId;
-  value.data = NULL;
+  value.chardata = NULL;
   value.length = 0;
+  value.is_string = false;
 }
 

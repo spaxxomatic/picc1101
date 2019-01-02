@@ -47,7 +47,7 @@ int radio_transmit_test_int( arguments_t *arguments)
 int radio_receive_test_int( arguments_t *arguments)
 // ------------------------------------------------------------------------------------------------
 {
-    uint8_t nb_rx, rx_bytes[RADIO_BUFSIZE];
+    uint8_t nb_rx, rx_bytes[256];
 
     init_radio_int();
     PI_CC_SPIStrobe( PI_CCxxx0_SFRX); // Flush Rx FIFO

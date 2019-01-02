@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sstream>
 //when compiling in mocked mode, include the mock and disable the global include
 #ifdef _MOCKED
 #include "../../mocks/wiringPi.h"
@@ -20,6 +21,7 @@
 #endif
 
 #include "params.h"
+#include "../../mqtt.h"
 #include "../../util.h"
 #include "radio.h"
 #include "pi_cc_spi.h"
@@ -104,10 +106,10 @@ void irq_handle_packet(void) {
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
 		{
-			verbprintf(3, "Rising IRQ\n");
+			verbprintf(3, "RX R IRQ\n");
 			radio_int_data.packet_receive = 1;
 		}else{
-			verbprintf(3, "FallingIRQ\n");
+			verbprintf(3, "RX F IRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
 			// Any byte waiting to be read and no overflow?
 			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { //is there data to be read and no overflow?
@@ -119,16 +121,11 @@ void irq_handle_packet(void) {
 				else {
 					//read the net data
 					packet.length = rxDataLength ;
-					/*for (int i=0; i < rxDataLength; i++){
-						PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO,  (uint8_t *) &packet.data[i]); 
-					}*/
-					//for some reason (bug in SPI?) the ReadBurstReg returns resuts shifted left by one byte. Last byte is lost. 
 					PI_CC_SPIReadBurstReg(PI_CCxxx0_RXFIFO, packet.data, packet.length ); 
-					packet.printAsHex();
-
+					//packet.printAsHex();
+					
 					//the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is LQI/CRC
 					// Read RSSI
-					
 					PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &packet.rssi);
 					// Read LQI and CRC_OK
 					PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &packet.lqi);
@@ -139,10 +136,6 @@ void irq_handle_packet(void) {
 						packet.errorCode = RADIOERR_PACKET_CRC_ERR;
 					}
 				}
-				//PI_CC_SPIStrobe(PI_CCxxx0_SFRX); //flush the fifo buffer
-				//PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
-				//PI_CC_SPIStrobe(PI_CCxxx0_SFTX); //flush the fifo buffer				
-				//PI_CC_SPIStrobe(PI_CCxxx0_SRX);// Enter RX state
 			}
 			//increment the buff counter
 			circular_incr(radio_int_data.rx_buff_idx);
@@ -157,16 +150,14 @@ void irq_handle_packet(void) {
 	else if (radio_int_data.mode == RADIOMODE_TX) {
 		if (int_line) {
 			radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
-			verbprintf(3, "GDO0 Tx Rising \n");
+			//verbprintf(3, "TX R IRQ\n");
 		}
 		else {
-			verbprintf(3, "GDO0 Tx Falling \n");
+			//verbprintf(3, "TX F IRQ\n");
 			if (radio_int_data.packet_send) // packet has been sent
 			{
 				radio_int_data.mode = RADIOMODE_TX_END; //the mode has to be set 
 				radio_int_data.packet_send = 0; // De-assert packet transmission after packet has been sent
-				//print_radio_status();
-				//radio_flush_fifos();
 			}
 		}
 	}
@@ -783,16 +774,6 @@ float radio_get_rate(radio_parms_t *radio_parms)
 }
 
 // ------------------------------------------------------------------------------------------------
-// Get the time to transmit or receive a byte in microseconds
-float radio_get_byte_time(radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	float base_time = 8000000.0 / radio_get_rate(radio_parms);
-
-	return base_time;
-}
-
-// ------------------------------------------------------------------------------------------------
 // Wait for the reception or transmission to finish
 void radio_wait_free()
 // ------------------------------------------------------------------------------------------------
@@ -804,8 +785,9 @@ void radio_wait_free()
 		timeout ++;
 		if (timeout > RADIO_WATCHDOG_TIMEOUT/50){
 			//we should reset the radio - it must be hanging
-			printf("ERROR: Tx/Rx IRQ state change timer expired. Trigger radio reset");
+			printf("ERROR: Tx/Rx IRQ state change timer expired. Resetting radio");
 			reset_radio();
+			return;
 		}
 	}
 }
@@ -816,10 +798,13 @@ void radio_init_rx()
 // ------------------------------------------------------------------------------------------------
 {
 	radio_int_data.mode = RADIOMODE_RX;
-	//PI_CC_SPIWriteReg( PI_CCxxx0_IOCFG2, 0x00); // GDO2 output pin config RX mode
 	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
+/*
+* radio_process_packet
+* decode a received packet
+*/
 uint8_t radio_process_packet() {
 	if (radio_int_data.rx_buff_idx == radio_int_data.rx_buff_read_idx)
 		return 0; //nothing to do, no new packets in the receive buffer. This should actually not happend.
@@ -827,12 +812,31 @@ uint8_t radio_process_packet() {
 	while (radio_int_data.rx_buff_idx != radio_int_data.rx_buff_read_idx) { //packets have been received and are waiting processing
 		circular_incr(radio_int_data.rx_buff_read_idx);
 		//verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
+		//rx_ccpacket_buf[radio_int_data.rx_buff_read_idx].printAsHex();
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		char buff[512];
-		verbprintf(3, "RCV: SW packet: %s", swPacket.asString(buff));
+		verbprintf(3, "RCV: SW packet: %s", swPacket.as_string(buff));
 		no_of_packets++;
 		switch (swPacket.function)
 		{
+		case SWAPFUNCT_STA: //status update
+			if (swPacket.destAddr == MASTER_ADDRESS || swPacket.destAddr == BROADCAST_ADDRESS) {
+					//std::string val; 
+					//val.insert(0, swPacket.value.data, swPacket.value.length);
+					//val.c_str();
+					/* a buffer for holding a string representation of the payload */
+					char valbuff[sizeof(CCPACKET::data)];
+					swPacket.val_to_string(valbuff);
+					verbprintf(2,"Received stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
+					
+					//not very elegant to directly send to mqtt, but for now let's leave it so
+					//We should rather use a buffer and decouple packet decode from sending responses
+					//std::ostringstream s_msg;
+					//s_msg << std::to_string(swPacket.regId) << ':' << valbuff;
+					//const std::string msg = s_msg.str();
+					mqtt_send_actor_state(swPacket.srcAddr, swPacket.regId, &swPacket.value);
+			}
+			break;			
 		case SWAPFUNCT_ACK:
 			if (swPacket.destAddr != MASTER_ADDRESS) {
 				if (commstack.stackState == STACKSTATE_WAIT_ACK) {
@@ -879,7 +883,6 @@ uint8_t radio_process_packet() {
 // Transmission of a data packet
 bool tx_handler()
 {
-	verbprintf(1, "tx handler\n");
 	//look if there is anything to be sent in the tx buff
 	if (radio_int_data.tx_buff_idx_sent == radio_int_data.tx_buff_idx_ins) { //nothing added to the buff, return
 		return true;
@@ -914,8 +917,6 @@ bool tx_handler()
 			if (!wait_for_state(CCxxx0_STATE_RX, 50)) {
 				//timeout
 				reset_radio(); //should never happend, but if, at least try to leave the radio in a defined state
-				//radio_init_rx();
-				//radio_turn_rx();					
 				return false;
 			};			
 		}
