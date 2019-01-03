@@ -42,8 +42,9 @@ using namespace std;
 class CCPACKET
 {
   public:
-    void copy(CCPACKET* source);
-    //void copy(const CCPACKET &p2); 
+    CCPACKET(); //constuctor
+    CCPACKET(const CCPACKET* source); //copy constuctor
+    void copy(const CCPACKET* source);
     
     /**
      * ERROR flag
@@ -71,7 +72,10 @@ class CCPACKET
     uint8_t lqi;
 
     void printAsHex();
-
+    std::string to_string() const;
+    bool ack_ok = false; //packet has been aknowledged
+    void incr_retry_cnt () ;
+    int retry = 0; //number of resends
 };
 
 #endif

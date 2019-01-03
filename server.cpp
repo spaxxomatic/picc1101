@@ -22,6 +22,8 @@
 #include <signal.h>
 #include "mqtt.h"
 
+#include <sys/time.h>
+
 const char* inifile = "spaxxserver.ini";
 INIReader* inireader ;
 extern uint8_t radio_process_packet();
@@ -32,6 +34,14 @@ void die(const char* msg){
   fprintf(stderr, "%s\n", msg);
   server_shutdown();
   exit(1);
+}
+
+
+void periodic_task  (int signum)
+{
+ static int count = 0;
+ //printf (" periodic task in C++ timer %d \n", ++count);
+ //ackAwaitQueue.trigger();
 }
 
 void sig_handler(int signo)
@@ -66,11 +76,25 @@ void server_init(arguments_t *arguments)
   init_radio_int();
   
   int ret = reset_radio();
-  if (ret != 0) die("Cannot initialize radio link");
+  if (ret != 0) die("Cannot initialize radio link\n");
   //connect to mqtt broker
-  if (!mqtt_init()) die("Mqtt failure, exiting");
+  if (!mqtt_init()) die("Mqtt failure, exiting\n");
 
   sem_init(&sem_radio_irq, 0, 0);
+
+  struct sigaction sa;
+  struct itimerval timer;
+
+  /* Install periodic_task  as the signal handler for SIGVTALRM. */
+  //memset (&sa, 0, sizeof (sa));
+  //sa.sa_handler = &periodic_task ;
+  //sigaction (SIGVTALRM, &sa, NULL);  
+  if (signal(SIGALRM, periodic_task) == SIG_ERR) die("can't catch SIGALRM \n");
+  timer.it_value.tv_sec = 0;
+  timer.it_value.tv_usec = 250000;
+  timer.it_interval.tv_sec = 0;
+  timer.it_interval.tv_usec = 250000;
+  if (setitimer (ITIMER_REAL, &timer, NULL) == -1) die ("can't set timer\n");
 
 }
 
@@ -87,12 +111,8 @@ void server_run(arguments_t *arguments)
 
     //server loop
     while(1){
-        printf("mainloop\n");
         sem_wait(&sem_radio_irq); //waiting for radio data in this thread
-        if (radio_process_packet()){
-             //mqtt_send("/CCRADIO/MSG","Got a packet");         
-		     printf("Got a packet\n");
-        };        
+        radio_process_packet();
         //tx_handler();
       }
 }

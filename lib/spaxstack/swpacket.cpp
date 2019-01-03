@@ -43,16 +43,18 @@ SWPACKET::SWPACKET(CCPACKET* packet)
   hop = (packet->data[2] >> 4) & 0x0F;
   packetNo = packet->data[3];
   function = packet->data[4];
-  regAddr = packet->data[5];
-  regId = packet->data[6];
-  value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
-  
-  //lsb of data[2] indicates the data type, 1->string, 0->number
-  value.is_string = bitRead(packet->data[2], 0);
-  if (value.is_string){
-    value.chardata = packet->data + 7;
-  }else{
-    value.bytedata = *(packet->data + 7);
+  if (function != SWAPFUNCT_ACK){ //an ack packet has no data
+    regAddr = packet->data[5];
+    regId = packet->data[6];
+    value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
+    
+    //lsb of data[2] indicates the data type, 1->string, 0->number
+    value.is_string = bitRead(packet->data[2], 0);
+    if (value.is_string){
+      value.chardata = packet->data + 7;
+    }else{
+      value.bytedata = *(packet->data + 7);
+    }
   }
 }
 
@@ -75,13 +77,13 @@ void SWPACKET::prepare(CCPACKET* packet)
 {
   byte i;
   bool res;
-
+  packetNo = commstack.sentPacketNo++;
   packet->length = value.length + SWAP_DATA_HEAD_LEN + 1;
   packet->errorCode = 0;
   packet->data[0] = destAddr;
   packet->data[1] = srcAddr;
   packet->data[2] = (hop << 4) & 0xF0;
-  packet->data[3] = commstack.sentPacketNo;
+  packet->data[3] = packetNo;
   packet->data[4] = function;
   packet->data[5] = regAddr;
   packet->data[6] = regId;

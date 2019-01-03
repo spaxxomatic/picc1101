@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <map>
+#include <iterator>
 #include <sstream>
 //when compiling in mocked mode, include the mock and disable the global include
 #ifdef _MOCKED
@@ -28,6 +31,8 @@
 #include "cc1101_defvals.h"
 #include "pi_cc_cc1101.h"
 
+
+AckAwaitQueue ackAwaitQueue;
 sem_t sem_radio_irq; //semaphore for thread sync
 //static radio_int_data_t *p_radio_int_data = 0;
 extern int registerNewNode();
@@ -106,24 +111,26 @@ void irq_handle_packet(void) {
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
 		{
-			verbprintf(3, "RX R IRQ\n");
+			//verbprintf(3, "RX R IRQ\n");
 			radio_int_data.packet_receive = 1;
 		}else{
-			verbprintf(3, "RX F IRQ\n");
+			//verbprintf(3, "RX F IRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
+			
 			// Any byte waiting to be read and no overflow?
-			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { //is there data to be read and no overflow?
+			//cout << "RClen " << to_string((uint)rxBytes) << "\n";
+			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { 
 				// Read data length
 				PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the data len
 				if (rxDataLength > CC1101_DATA_LEN) {
-					packet.errorCode = RADIOERR_PACKET_TOO_LONG;
+					verbprintf(3, "Pkt too long\n");
 				}
 				else {
 					//read the net data
 					packet.length = rxDataLength ;
 					PI_CC_SPIReadBurstReg(PI_CCxxx0_RXFIFO, packet.data, packet.length ); 
-					//packet.printAsHex();
 					
+					//packet.printAsHex();
 					//the last 2 bytes are appended by the CC1101. First one is the RSSI and the second is LQI/CRC
 					// Read RSSI
 					PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &packet.rssi);
@@ -132,18 +139,20 @@ void irq_handle_packet(void) {
 					bool crc_ok = bitRead(packet.lqi, 7);
 					packet.lqi = packet.lqi & 0x7F;
 					if (!crc_ok) {
-						verbprintf(3, "CRC err \n");
+						verbprintf(1, "CRC err \n");
 						packet.errorCode = RADIOERR_PACKET_CRC_ERR;
+					}else{
+						//increment the buff counter
+						circular_incr(radio_int_data.rx_buff_idx);
+						rx_ccpacket_buf[radio_int_data.rx_buff_idx].errorCode = packet.errorCode;
+						//the copy function will copy the data only if there are no errors
+						//cout << "RCIRQ" << packet.to_string();
+						rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
+						//increment semaphore to notify packet reception
+						sem_post(&sem_radio_irq);
 					}
 				}
 			}
-			//increment the buff counter
-			circular_incr(radio_int_data.rx_buff_idx);
-			rx_ccpacket_buf[radio_int_data.rx_buff_idx].errorCode = packet.errorCode;
-			//the copy function will copy the data only if there are no errors
-			rx_ccpacket_buf[radio_int_data.rx_buff_idx].copy(&packet);
-			//increment semaphore to notify packet reception
-			sem_post(&sem_radio_irq);
 			radio_int_data.packet_receive = 0; //receive done
 		}
 	}
@@ -186,7 +195,7 @@ bool wait_for_tx_end(uint32_t timeout)
 	uint8_t fsm_state;
 	while (timeout)
 	{
-		usleep(1000);
+		usleep(500);
 		PI_CC_SPIReadStatus(PI_CCxxx0_MARCSTATE, &fsm_state);
 		fsm_state &= 0x1F;
 		//verbprintf(1, "   modem in state %s \n", state_names[fsm_state]);
@@ -349,8 +358,6 @@ int init_radio()
 		verbprintf(1, "CC1101 chip has been reset.\n");
 	}
 
-	int packet_length = 10;  // Packet length
-
 	// Write register settings
 
 	// IOCFG2 = 0x00: Set in Rx mode (0x02 for Tx mode)
@@ -400,7 +407,8 @@ int init_radio()
 	PI_CC_SPIWriteReg(PI_CCxxx0_SYNC0, CC1101_DEFVAL_SYNC0);
 
 	//nutiu PI_CC_SPIWriteReg( PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration (unused, see just above).
-	PI_CC_SPIWriteReg(PI_CCxxx0_ADDR, 0xFF);
+	PI_CC_SPIWriteReg(PI_CCxxx0_ADDR, MASTER_ADDRESS);
+	//PI_CC_SPIWriteReg(PI_CCxxx0_ADDR, 0xFF);
 	PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, 0x00); // Channel number (unused, use direct frequency programming).
 
 
@@ -514,7 +522,7 @@ int init_radio()
 	//   1 (01): FSTXON
 	//   2 (10): TX (stay)
 	//   3 (11): RX 
-	//PI_CC_SPIWriteReg(PI_CCxxx0_MCSM1, 0x3C); //MainRadio Cntrl State Machine
+	
 	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM1, CC1101_DEFVAL_MCSM1); //MainRadio Cntrl State Machine
 
 	// MCSM0: Main Radio State Machine.
@@ -532,7 +540,7 @@ int init_radio()
 	//   3 (11): 256: Approx. 597 – 620 μs
 	// o bit 1: PIN_CTRL_EN:   Enables the pin radio control option
 	// o bit 0: XOSC_FORCE_ON: Force the XOSC to stay on in the SLEEP state.
-	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_MCSM0, 0x18); //MainRadio Cntrl State Machine
+	
 	PI_CC_SPIWriteReg(PI_CCxxx0_MCSM0, CC1101_DEFVAL_MCSM0); //MainRadio Cntrl State Machine
 
 
@@ -785,7 +793,7 @@ void radio_wait_free()
 		timeout ++;
 		if (timeout > RADIO_WATCHDOG_TIMEOUT/50){
 			//we should reset the radio - it must be hanging
-			printf("ERROR: Tx/Rx IRQ state change timer expired. Resetting radio");
+			printf("ERROR: Tx/Rx IRQ state change timer expired. Resetting radio\n");
 			reset_radio();
 			return;
 		}
@@ -838,19 +846,9 @@ uint8_t radio_process_packet() {
 			}
 			break;			
 		case SWAPFUNCT_ACK:
-			if (swPacket.destAddr != MASTER_ADDRESS) {
-				if (commstack.stackState == STACKSTATE_WAIT_ACK) {
-					//check packet no
-					if (swPacket.packetNo == commstack.sentPacketNo) {
-						commstack.stackState = STACKSTATE_READY;
-					}
-				}
-				else {
-					commstack.errorCode = STACKERR_ACK_WITHOUT_SEND;
-				}
-			}
-			else {
-				commstack.errorCode = STACKERR_WRONG_DEST_ADDR;
+			if (swPacket.destAddr == MASTER_ADDRESS) {
+				//std::cout << "ack pkt "<< (int)swPacket.packetNo << " for " << (int)swPacket.srcAddr << "\n";
+				ackAwaitQueue.ack_packet(swPacket.srcAddr, swPacket.packetNo);
 			}
 			break;
 		case SWAPFUNCT_CMD:
@@ -880,20 +878,18 @@ uint8_t radio_process_packet() {
 	return no_of_packets;
 }
 
-// Transmission of a data packet
-bool tx_handler()
-{
+bool transmit_packets() { //sends a radio packet 
+	//add_to_tx_queue(p_packet);
 	//look if there is anything to be sent in the tx buff
 	if (radio_int_data.tx_buff_idx_sent == radio_int_data.tx_buff_idx_ins) { //nothing added to the buff, return
 		return true;
 	}else {
-		int ret;
 		while (radio_int_data.tx_buff_idx_sent != radio_int_data.tx_buff_idx_ins) {
 			//send all packets from the buffer
-			verbprintf(1, "Tx packet\n");
 			circular_incr(radio_int_data.tx_buff_idx_sent);
+			//cout << "-----" << (int) radio_int_data.tx_buff_idx_ins << " **  " << (int) radio_int_data.tx_buff_idx_sent <<"\n"<< std::flush;
 			CCPACKET *packet = &tx_ccpacket_buf[radio_int_data.tx_buff_idx_sent];
-			
+			//verbprintf(3, "Read from buff at %i %s\n", radio_int_data.tx_buff_idx_sent, packet->to_string().c_str() );
 			radio_wait_free();
 			//PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, 0x02); // GDO2 output pin config TX mode
 			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
@@ -912,23 +908,38 @@ bool tx_handler()
 			}; // Wait max 10ms
 			//radio_wait_free();
 			//PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
-			packet->printAsHex();
-			verbprintf(2, "Tx: sent %d bytes\n", packet->length);
-			if (!wait_for_state(CCxxx0_STATE_RX, 50)) {
+			verbprintf(3, "TX: %s\n", packet->to_string().c_str() );
+			//packet must be aknowledged, add it to the ack buffer			
+			if (!wait_for_state(CCxxx0_STATE_RX, 100)) {
 				//timeout
-				reset_radio(); //should never happend, but if, at least try to leave the radio in a defined state
-				return false;
-			};			
+				reset_radio(); //should not happend, but if, at least try to leave the radio in a defined state
+				//return false;
+			};
+			// Declare to be in Rx state
+			radio_int_data.mode = RADIOMODE_RX;			
 		}
-		// Declare to be in Rx state
-		radio_int_data.mode = RADIOMODE_RX;
 		return true;
 	}
+
 }
 
+//reentrant, thread-safe function for inserting the packets to be sent in the transmit buffer
+void enque_tx_packet(SWPACKET* p_packet){ 
+	//verbprintf(3,"EE thread id %i\n",getpid());  
+	circular_incr(radio_int_data.tx_buff_idx_ins);	
+	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]); //prepare sets the packet no too
+	//printf(" ----EN---- to insert AT %i : %s ", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
+	//printf(" ----EN---- inserted AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
+	transmit_packets();
+	ackAwaitQueue.append(p_packet->destAddr, p_packet->packetNo, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
+	//printf(" ----EN---- awaitq AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
+}
 
-bool transmit_packet(SWPACKET* p_packet) { //sends a radio packet 
-	circular_incr(radio_int_data.tx_buff_idx_ins);
-	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
-	tx_handler();
+void resend_packet(const CCPACKET* p_packet){ 
+	verbprintf(3,"RE from thread id %i\n",getpid());    	
+	circular_incr(radio_int_data.tx_buff_idx_ins);		
+	//printf(" ----RE---- to insert AT %i : %s \n", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
+	tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].copy(p_packet); //copy the packet to the buffer
+	//printf(" ----RE--- inserted AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
+	transmit_packets();
 }

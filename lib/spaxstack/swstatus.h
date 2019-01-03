@@ -43,16 +43,4 @@ class SWSTATUS : public SWPACKET
     SWSTATUS(byte registerId, byte *val, byte len);
 };
 
-class SWACK : public SWPACKET
-{
-  public:
-    /**
-     * ACKPACKET
-     * 
-     * Class constructor
-     * 
-     * 'dAddr'	Destination address
-     */
-    SWACK(byte dAddr);
-};
 #endif

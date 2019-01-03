@@ -47,19 +47,3 @@ SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len)
   value.is_string = true;
 }
 
-/**
- * SWACK
- * 
- * Class constructor
- * 
- * 'rId'	Register id
- * '*val'	New value
- * 'len'	Buffer length
- */
-SWACK::SWACK(byte dAddr)
-{
-  destAddr = dAddr;
-  srcAddr = MASTER_ADDRESS;
-  hop = 0;
-  function = SWAPFUNCT_ACK;
-}

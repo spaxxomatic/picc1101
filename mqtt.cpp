@@ -16,7 +16,7 @@
 
 extern INIReader* inireader ;
 extern void die(const char* msg);
-extern bool transmit_packet(SWPACKET* p_packet);
+extern void enque_tx_packet(SWPACKET* p_packet);
 struct mosquitto *mosq = NULL;
 
 static std::string subscribe_actors_topic;
@@ -77,50 +77,28 @@ int mqtt_send(const char* topic, const char* msg){
     return mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 1, true);
 }
 
-/*
-bool decode_actor_payload(std::string &payload, payloadRegister* ret){
-    std::regex e ("([0-9]+):([0-9]+)");
-    std::smatch pieces_match;
-    if (std::regex_match(payload, pieces_match, e)) {
-        if (pieces_match.size() != 3){
-            throw mqtt_msg_ex(MQTT_ERR_MSG[MQTT_ERR_INVALID_PAYLOAD]);
-        }else{
-            std::ssub_match p1 = pieces_match[1];
-            std::ssub_match p2 = pieces_match[2];
-            std::string rAddr = p1.str();
-            std::string rVal = p2.str();
-            std::cout << "  Reg: " << rAddr << " Val: " << rVal << '\n';  
-            ret->regId = std::stoi( rAddr ); 
-            ret->regVal = std::stoi( rVal );
-            return true;
-        }   
-    }
-}
-*/
-
 int handle_actor_message(actorRegister* areg, std::string payload){
-    printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
-    int regValue = std::stoi(payload);//decode_actor_payload(payload, &res);
+    //printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
+    int regValue = std::stoi(payload);
     SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
-    transmit_packet(&command);
+    enque_tx_packet(&command);
     return MQTT_OK;
 }    
 
 int handle_radionodes_stat(actorRegister* areg, std::string payload){
     //printf("handle_radionodes_descr %i %s\n", actor_id, payload.c_str() );    
     SWQUERY query = SWQUERY(areg->actorId, areg->actorId, areg->regId);
-    transmit_packet(&query);
+    enque_tx_packet(&query);
     return MQTT_OK;
 };
 
 int handle_config_message(actorRegister* areg, std::string payload){
-    //TODO implement me
+    //TODO: implement me
     printf("handle_config_message %i %s\n", areg->actorId, payload.c_str() );
     return MQTT_OK;
 };
 
 int handle_stat_message(){
-    printf("handle_stat_message \n");
     printf("--- Radio state ---\n");
     print_radio_status();
     return MQTT_OK;

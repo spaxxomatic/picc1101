@@ -7,7 +7,7 @@ RM := rm -f
 EXTRA_CFLAGS :=  -std=c++11 -DMAX_VERBOSE_LEVEL=4 -MMD
 
 
-SRC :=  main.cpp lib/inih/ini.c mqtt.cpp  $(wildcard lib/spaxstack/*.cpp)  lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
+SRC :=  main.cpp lib/inih/ini.c lib/async/queue.cpp mqtt.cpp  $(wildcard lib/spaxstack/*.cpp)  lib/radio/pi_cc_spi.cpp lib/radio/radio.cpp \
  server.cpp test.cpp util.c lib/inih/inireader.cpp 
 
 TARGET_DIR := out

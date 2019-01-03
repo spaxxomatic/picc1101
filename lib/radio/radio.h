@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include "../async/queue.h"
 
 extern sem_t sem_radio_irq;
 
@@ -28,9 +29,6 @@ extern sem_t sem_radio_irq;
 //For Raspberry PI
 //#define WPI_GDO0 5 // For Orange Pi, 5 is GPIO_24 connected to GDO0
 //#define WPI_GDO2 4 // For Orange Pi, 6 is GPIO_25 connected to GDO2
-
-#define TX_FIFO_REFILL 60 // With the default FIFO thresholds selected this is the number of bytes to refill the Tx FIFO
-#define RX_FIFO_UNLOAD 59 // With the default FIFO thresholds selected this is the number of bytes to unload from the Rx FIFO
 
 typedef enum sync_word_e
 {
@@ -107,27 +105,27 @@ volatile static radio_int_data_t radio_int_data;
 volatile static int packets_sent = 0;
 volatile static int packets_received = 0;
 
-extern const char     *state_names[];
+extern const char *state_names[];
+extern AckAwaitQueue ackAwaitQueue;
 
-int    setup_spi(arguments_t *arguments);
+int     setup_spi(arguments_t *arguments);
 int     reset_radio();
 int     init_radio();
-void     init_radio_int();
-void     radio_init_rx();
-void     radio_flush_fifos();
+void    init_radio_int();
+void    radio_init_rx();
+void    radio_flush_fifos();
 
-void     radio_turn_idle();
-void     radio_turn_rx();
+void    radio_turn_idle();
+void    radio_turn_rx();
 
-int      print_radio_status();
+int     print_radio_status();
 
-int      radio_set_packet_length( uint8_t pkt_len);
-uint8_t  radio_get_packet_length();
-float    radio_get_rate(radio_parms_t *radio_parms);
+int     radio_set_packet_length( uint8_t pkt_len);
+uint8_t radio_get_packet_length();
+float   radio_get_rate(radio_parms_t *radio_parms);
 
-void     radio_wait_free();
+void    radio_wait_free();
 
-bool     tx_handler();
-bool    send_packet(CCPACKET* p_packet);
-
+void    enque_tx_packet(SWPACKET* p_packet);
+void    resend_packet(const CCPACKET* p_packet);
 #endif
