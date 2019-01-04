@@ -823,7 +823,7 @@ uint8_t radio_process_packet() {
 		//rx_ccpacket_buf[radio_int_data.rx_buff_read_idx].printAsHex();
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		char buff[512];
-		verbprintf(3, "RCV: SW packet: %s", swPacket.as_string(buff));
+		verbprintf(4, "RCV: SW packet: %s", swPacket.as_string(buff));
 		no_of_packets++;
 		switch (swPacket.function)
 		{
@@ -908,7 +908,7 @@ bool transmit_packets() { //sends a radio packet
 			}; // Wait max 10ms
 			//radio_wait_free();
 			//PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
-			verbprintf(3, "TX: %s\n", packet->to_string().c_str() );
+			verbprintf(4, "TX: %s\n", packet->to_string().c_str() );
 			//packet must be aknowledged, add it to the ack buffer			
 			if (!wait_for_state(CCxxx0_STATE_RX, 100)) {
 				//timeout

@@ -37,11 +37,11 @@ void die(const char* msg){
 }
 
 
-void periodic_task  (int signum)
+void second_tick  (int signum)
 {
  static int count = 0;
  //printf (" periodic task in C++ timer %d \n", ++count);
- //ackAwaitQueue.trigger();
+ ackAwaitQueue.trigger();
 }
 
 void sig_handler(int signo)
@@ -85,15 +85,12 @@ void server_init(arguments_t *arguments)
   struct sigaction sa;
   struct itimerval timer;
 
-  /* Install periodic_task  as the signal handler for SIGVTALRM. */
-  //memset (&sa, 0, sizeof (sa));
-  //sa.sa_handler = &periodic_task ;
-  //sigaction (SIGVTALRM, &sa, NULL);  
-  if (signal(SIGALRM, periodic_task) == SIG_ERR) die("can't catch SIGALRM \n");
-  timer.it_value.tv_sec = 0;
-  timer.it_value.tv_usec = 250000;
-  timer.it_interval.tv_sec = 0;
-  timer.it_interval.tv_usec = 250000;
+  /* Install periodic_task as the signal second_tick for SIGALRM. */
+  if (signal(SIGALRM, second_tick) == SIG_ERR) die("can't catch SIGALRM \n");
+  timer.it_value.tv_sec = 1; 
+  timer.it_value.tv_usec = 0;
+  timer.it_interval.tv_sec = 1; //each second 
+  timer.it_interval.tv_usec = 0;
   if (setitimer (ITIMER_REAL, &timer, NULL) == -1) die ("can't set timer\n");
 
 }

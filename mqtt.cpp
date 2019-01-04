@@ -146,7 +146,6 @@ void handle_message(const struct mosquitto_message *message){
             std::string strTopic = ptopic.str();
             std::string rActorId = p1.str();
             std::string rRegId = p2.str();
-            std::cout << "  ActorId: " << rActorId << " Reg: " << rRegId << '\n';  
             areg.actorId = std::stoi( p1.str() ); 
             areg.regId = std::stoi(  p2.str() );
             CK_VALID_UINT8_T(areg.actorId,MQTT_ERR_INVALID_ACTOR_ID);    
@@ -210,7 +209,7 @@ void on_subscribe_callback(struct mosquitto *mosq, void *userdata, int mid, int 
 
 void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const char *str)
 {
-  verbprintf(4, "mqtt log: %s\n", str);
+    verbprintf(5, "mqtt log: %s\n", str);
 }
 
 void mqtt_stop(){
