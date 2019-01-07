@@ -4,6 +4,7 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
+#define DEF_INI_FILE "spaxxserver.ini"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -14,6 +15,9 @@
 void server_run( arguments_t *arguments);
 void server_init(arguments_t *arguments);
 void die(char* msg);
-void readIniFile();
+void readIniFile(char* inifile);
 int registerNewNode();
+
+extern INIReader* inireader ;
+
 #endif

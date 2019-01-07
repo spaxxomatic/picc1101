@@ -140,14 +140,14 @@ void PI_CC_Wait(unsigned int cycles)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPISetup( arguments_t *arguments)
+int PI_CC_SPISetup(const char* spi_device)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->ret = 0;
-
+    printf("Using SPI device %s",spi_device);
     do
     {
-        spi_parms->fd = open(arguments->spi_device, O_RDWR);
+        spi_parms->fd = open(spi_device, O_RDWR);
         if (spi_parms->fd < 0)
         {
             perror("SPI: can't open device");

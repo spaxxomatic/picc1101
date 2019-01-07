@@ -32,9 +32,9 @@ int radio_transmit_test_int( arguments_t *arguments)
 	PI_CC_SPIWriteReg(PI_CCxxx0_TXFIFO, test.length); //first pos in fifo is the packet length	
     PI_CC_SPIStrobe( PI_CCxxx0_SFTX); // Flush Tx FIFO
     
-    verbprintf(0, "Sending %d test packets of size %d\n", arguments->repetition, PI_CCxxx0_FIFO_SIZE);
+    verbprintf(0, "Sending 10 test packets of size %d\n", PI_CCxxx0_FIFO_SIZE);
 
-    while(packets_sent < arguments->repetition)
+    while(packets_sent < 10)
     {
         radio_wait_free(); // make sure no radio operation is in progress
         //nutiu fixme radio_send_packet( arguments, arguments->test_phrase, strlen(arguments->test_phrase));
@@ -42,33 +42,4 @@ int radio_transmit_test_int( arguments_t *arguments)
     } 
 }
 
-// ------------------------------------------------------------------------------------------------
-// Reception test with interrupt handling
-int radio_receive_test_int( arguments_t *arguments)
-// ------------------------------------------------------------------------------------------------
-{
-    uint8_t nb_rx, rx_bytes[256];
-
-    init_radio_int();
-    PI_CC_SPIStrobe( PI_CCxxx0_SFRX); // Flush Rx FIFO
-
-    verbprintf(0, "Starting...\n");
-    uint8_t block; uint32_t size; 
-    uint8_t crc;
-    while((arguments->repetition == 0) || (packets_received < arguments->repetition))
-    {
-        radio_init_rx(); // Init for new packet to receive
-        radio_turn_rx();            // Put back into Rx
-
-        do
-        {
-            radio_wait_free(); // make sure no radio operation is in progress
-            //nutiu fixme do we need this test function ?
-            //nb_rx = radio_receive_block(rx_bytes, &size, &crc);
-        } while(nb_rx == 0);
-
-        rx_bytes[nb_rx] = '\0';
-        verbprintf(0,"\"%s\"\n", rx_bytes);
-    }
-}
 

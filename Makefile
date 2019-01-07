@@ -37,7 +37,7 @@ DEP = $(OBJ:.o=.d)
 
 CC := g++ -g3
 
-.PHONY: prepare list_objects prepare_mock gccversion clean 
+.PHONY: prepare list_objects prepare_mock gccversion clean install
 
 clean:
 	$(RM)r $(TARGET_DIR)
@@ -89,3 +89,6 @@ $(TARGET_DIR)/%.o : %.cpp
 mock: gccversion prepare prepare_mock build_mock link_mock
 
 all: gccversion prepare build link
+
+install: 
+	sudo install/install.sh

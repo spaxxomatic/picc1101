@@ -48,7 +48,7 @@ void PI_CC_Wait(unsigned int cycles)
 }
 
 // ------------------------------------------------------------------------------------------------
-int PI_CC_SPISetup(arguments_t *arguments)
+int PI_CC_SPISetup(const char* spi_device)
 // ------------------------------------------------------------------------------------------------
 {
     spi_parms->ret = 0;

@@ -46,13 +46,10 @@ typedef struct radio_parms_s
 {
     uint32_t           f_xtal;        // Crystal frequency (Hz)
     uint32_t           f_if;          // IF frequency (Hz)
-    uint8_t            fec;           // FEC is in use
     sync_word_t        sync_ctl;      // Sync word control
     float              deviat_factor; // FSK-2 deviation is +/- data rate divised by this factor
     uint32_t           freq_word;     // Frequency 24 bit word FREQ[23..0]
     uint8_t            if_word;       // Intermediate frequency 5 bit word FREQ_IF[4:0] 
-    uint8_t            drate_m;       // Data rate mantissa
-    uint8_t            drate_e;       // Data rate exponent
 } radio_parms_t;
 
 typedef enum radio_int_scheme_e 
@@ -108,7 +105,7 @@ volatile static int packets_received = 0;
 extern const char *state_names[];
 extern AckAwaitQueue ackAwaitQueue;
 
-int     setup_spi(arguments_t *arguments);
+int     setup_spi(arguments_t *arguments, const char* spi_device);
 int     reset_radio();
 int     init_radio();
 void    init_radio_int();
@@ -122,7 +119,6 @@ int     print_radio_status();
 
 int     radio_set_packet_length( uint8_t pkt_len);
 uint8_t radio_get_packet_length();
-float   radio_get_rate(radio_parms_t *radio_parms);
 
 void    radio_wait_free();
 

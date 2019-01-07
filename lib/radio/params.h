@@ -7,76 +7,11 @@
 #define ALLOW_VAR_BLOCKS 0
 #define ALLOW_REAL_TIME  1
 
-typedef enum test_mode_e {
-    TEST_NONE = 0,
-    TEST_TX_SIMPLE,
-    TEST_TX_INTERRUPT,
-    TEST_RX_SIMPLE,
-    TEST_RX_INTERRUPT,
-    TEST_TX_ECHO,
-    TEST_RX_ECHO,
-    NUM_TEST
-} test_mode_t;
-
-extern char const *test_mode_names[];
-
-typedef enum rate_e {
-    RATE_50,
-    RATE_110,
-    RATE_300,
-    RATE_600,
-    RATE_1200,
-    RATE_2400,
-    RATE_4800,
-    RATE_9600,
-    RATE_14400,
-    RATE_19200,
-    RATE_28800,
-    RATE_38400,
-    RATE_57600,
-    RATE_76800,
-    RATE_115200,
-    RATE_250K,
-    RATE_500K,
-    NUM_RATE
-} rate_t;
-
-extern uint32_t rate_values[];
-
-typedef enum preamble_e {
-    PREAMBLE_2,
-    PREAMBLE_3,
-    PREAMBLE_4,
-    PREAMBLE_6,
-    PREAMBLE_8,
-    PREAMBLE_12,
-    PREAMBLE_16,
-    PREAMBLE_24,
-    NUM_PREAMBLE
-} preamble_t;
-
-extern uint8_t nb_preamble_bytes[];
-
 typedef struct arguments_s {
     uint8_t      verbose_level;        // Verbose level
-    uint8_t      print_long_help;      // Print a long help and exit
     // --- spi link radio ---
-    char         *spi_device;          // CC1101 SPI device
+    char         *ini_file;            // ini file name
     uint8_t      print_radio_status;   // Print radio status and exit
-    rate_t       rate;                 // Data rate (Baud)
-    float        rate_skew;            // Data rate skew multiplier from nominal
-    uint32_t     freq_hz;              // Frequency in Hz
-    test_mode_t  test_mode;            // Enter testing mode with specified test scheme 
-    uint8_t      test_rx;              // Reception test. Exits after receiving number of repetition packets
-    uint8_t      repetition;           // Repetition factor
-    uint8_t      whitening;            // Activate whitening
-    preamble_t   preamble;             // Preamblescheme (number of preamble bytes)
-    uint32_t     packet_delay;         // Delay before sending packet on serial or radio in 4 2-FSK symbols approximately
-    uint32_t     tnc_serial_window;    // Time window in microseconds for concatenating serial frames (0: no concatenation)
-    uint32_t     tnc_radio_window;     // Time window in microseconds for concatenating radio frames (0: no concatenation)
-    uint32_t     tnc_keyup_delay;      // TNC keyup delay in microseconds
-    uint32_t     tnc_keydown_delay;    // TNC keydown delay in microseconds
-    uint32_t     tnc_switchover_delay; // TNC Rx/Tx switchover delay in microseconds
     uint8_t      real_time;            // Engage so called "real time" scheduling
 } arguments_t;
 

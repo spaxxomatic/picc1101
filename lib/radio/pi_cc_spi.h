@@ -84,7 +84,7 @@ static spi_parms_t spi_parameters;
 
 void PI_CC_SPIParmsDefaults();
 void PI_CC_Wait(unsigned int);
-int  PI_CC_SPISetup(arguments_t *arguments);
+int PI_CC_SPISetup(const char* spi_device);
 int  PI_CC_SPIWriteReg(uint8_t addr, uint8_t byte);
 int  PI_CC_SPIWriteBurstReg(uint8_t addr, const uint8_t *bytes, uint8_t count);
 int  PI_CC_SPIReadReg(uint8_t addr, uint8_t *data);

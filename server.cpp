@@ -24,8 +24,8 @@
 
 #include <sys/time.h>
 
-const char* inifile = "spaxxserver.ini";
-INIReader* inireader ;
+INIReader* inireader;
+
 extern uint8_t radio_process_packet();
 
 void server_shutdown(); 
@@ -57,7 +57,7 @@ void server_shutdown(){
   delete inireader;
 }
 
-void readIniFile(){
+void readIniFile(char* inifile){
       //read ini file
     if (inireader == NULL){
       inireader = new INIReader(inifile);
@@ -72,7 +72,7 @@ void readIniFile(){
 void server_init(arguments_t *arguments)
 {
   if (signal(SIGINT, sig_handler) == SIG_ERR) printf("\ncan't catch SIGINT\n");
-  readIniFile();
+  readIniFile(arguments->ini_file);
   init_radio_int();
   
   int ret = reset_radio();

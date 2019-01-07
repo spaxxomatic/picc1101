@@ -1,0 +1,24 @@
+[Unit]
+Description=Spaxxserver CC1101 Radio Mqtt Interface
+After=syslog.target network.target mqtt.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/spaxxserver/spaxxserver.pid
+ExecStartPre=/bin/mkdir -p /var/run/spaxxserver
+ExecStart=/sbin/start-stop-daemon --start --oknodo --name spaxxserver -b  --make-pidfile --pidfile /var/run/spaxxserver/spaxx.pid --startas /bin/bash -- -c "exec /usr/sbin/spaxxserver -v 5 -T -i /var/lib/spaxx/spaxxserver.ini > /var/log/spaxx/spaxxserver.log 2>&1"
+ExecStop=/sbin/start-stop-daemon --stop --oknodo --name spaxxserver  --remove-pidfile --pidfile /var/run/spaxxserver/spaxx.pid --retry 5
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=always
+
+#[Service]
+#Type=simple
+#PIDFile=/var/run/spaxxserver/pid/master.pid
+#ExecStartPre=/bin/mkdir -p /var/run/spaxxserver
+#ExecStart=/usr/sbin/spaxxserver -v 5 -T -i /var/lib/spaxx/spaxxserver.ini > /var/log/spaxx/spaxxserver.log 2>&1
+#ExecReload=/bin/kill -USR2 $MAINPID
+#ExecStop=/bin/kill -9 $MAINPID
+#Restart=always
+
+[Install]
+WantedBy=default.target

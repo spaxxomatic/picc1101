@@ -72,16 +72,11 @@ You can use option -T of the program to get an even lower priority of -2 for a s
 
 ## Program options
  <pre><code>
-  -d, --spi-device=SPI_DEVICE   SPI device, (default : /dev/spidev0.0)
-  -f, --frequency=FREQUENCY_HZ   Frequency in Hz (default: 433600000)
-  -F, --fec                  Activate FEC (default off)
+  -i, --ini=INIFILE   INI file, (default : ./spaxxserver.ini)
   -H, --long-help            Print a long help and exit
   -l, --packet-delay=DELAY_UNITS   Delay between successive radio blocks when
                              transmitting a larger block. In 2-FSK byte
                              duration units. (default 30)
-  -n, --repetition=REPETITION   Repetiton factor wherever appropriate, see long
-                             Help (-H) option (default : 1 single)
-  -R, --rate=DATA_RATE_INDEX Data rate index, See long help (-H) option
   -s, --radio-status         Print radio status and exit
   -t, --test-mode=TEST_SCHEME   Test scheme, See long help (-H) option fpr
                              details (default : 0 no test)
@@ -90,13 +85,8 @@ You can use option -T of the program to get an even lower priority of -2 for a s
                              (default: 0 inactive)
   -T, --real-time            Engage so called "real time" scheduling (defalut
                              0: no)
-  -v, --verbose=VERBOSITY_LEVEL   Verbosiity level: 0 quiet else verbose level
+  -v, --verbose=VERBOSITY_LEVEL   Verbosity level: 0 quiet else verbose level
                              (default : quiet)
-  -V, --variable-length      Variable packet length. Given packet length
-                             becomes maximum length (default off)
-  -w, --rate-skew=RATE_MULTIPLIER
-                             Data rate skew multiplier. (default 1.0 = no
-                             skew)
   -W, --whitening            Activate whitening (default off)
   -?, --help                 Give this help list
       --usage                Give a short usage message
@@ -176,28 +166,6 @@ Alternatively you can specify these modules to be loaded at boot time by adding 
 ### Install AX.25 and KISS software
   - `sudo apt-get install ax25-apps ax25-node ax25-tools libax25`
 
-### Create your AX.25 interfaces configuration
-In `/etc/ax25/axports` you have to add a line with:
-  - `<interface name> <callsign and suffix> <speed> <paclen> <window size> <comment>`
-  - *interface name* is any name you will refer this interface to later
-  - *callsign and suffix* is your callsign and a suffix from 0 to 15. Ex: `F4EXB-14` and is the interface hardware address for AX.25 just like the MAC address is the hardware address for Ethrnet.
-  - *speed* is the speed in Baud. This has not been found really effective. The speed will be determined by the settings of the CC1101 itself and the TCP/IP flow will adapt to the actual speed.
-  - *paclen* this is the MTU of the network interface (ax0). Effectively this sets the limit on the size of each individual KISS frame although several frames can be concatenated. The value 224 along with a fixed radio block size (-P parameter) of 252 has been found satisfactory in most conditions.  
-  - *window size* is a number from 1 to 7 and is the maximum number of packets before an acknowledgement is required. This doesn't really work with KISS. KISS determines how many packets can be combined together in concatenated KISS frames that are sent as a single block. On the other end of the transmission the ACK can only be returned after the whole block has been received.
-  - *comment* is any descriptive comment
-
-Example:
- <pre><code>
- # /etc/ax25/axports
- #
- # The format of this file is:
- #
- # name callsign speed paclen window description
- #
- radio0  F4EXB-14           9600  224     1       Hamnet CC1101
- radio1  F4EXB-15           9600  224     1       Hamnet CC1101
- #1      OH2BNS-1           1200  255     2       144.675 MHz (1200  bps)
- #2      OH2BNS-9          38400  255     7       TNOS/Linux  (38400 bps)
 </code></pre>
 
 ### Create a virtual serial link

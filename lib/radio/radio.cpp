@@ -294,7 +294,7 @@ void radio_flush_fifos()
 	PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
 }
 
-int setup_spi(arguments_t *arguments){
+int setup_spi(arguments_t *arguments, const char* spi_device){
 	
 	wiringPiSetup(); // initialize Wiring Pi library and GDOx interrupt routines
 	verbprintf(1, "wiringPiSetup done.\n");
@@ -312,7 +312,7 @@ int setup_spi(arguments_t *arguments){
 
 	// open SPI link
 	PI_CC_SPIParmsDefaults();
-	ret = PI_CC_SPISetup(arguments);
+	ret = PI_CC_SPISetup(spi_device);
 	if (ret != 0)
 	{
 		fprintf(stderr, "RADIO: cannot open SPI link, RC=%d\n", ret);
@@ -430,15 +430,7 @@ int init_radio()
 	// FREQ1 is FREQ[15..8]
 	// FREQ0 is FREQ[7..0]
 	// Fxtal = 26 MHz and FREQ = 0x10A762 => Fo = 432.99981689453125 MHz
-	//radio_parms->freq_word = get_freq_word(radio_parms->f_xtal, arguments->freq_hz);
-	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ2,    ((radio_parms->freq_word>>16) & 0xFF)); // Freq control word, high byte
-	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ1,    ((radio_parms->freq_word>>8)  & 0xFF)); // Freq control word, mid byte.
-	//PI_CC_SPIWriteReg( PI_CCxxx0_FREQ0,    (radio_parms->freq_word & 0xFF));       // Freq control word, low byte.
-
-	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, 0x10); // Freq control word, high byte
-	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, 0xB1); // Freq control word, mid byte.
-	//PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, 0x86);       // Freq control word, low byte.
-
+	
 	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, CC1101_DEFVAL_FREQ2_433); // Freq control word, high byte
 	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, CC1101_DEFVAL_FREQ1_433); // Freq control word, mid byte.
 	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, CC1101_DEFVAL_FREQ0_433);  // Freq control word, low byte.
@@ -773,13 +765,6 @@ uint8_t radio_get_packet_length()
 	return pkt_len;
 }
 
-// ------------------------------------------------------------------------------------------------
-// Get the actual data rate in Bauds
-float radio_get_rate(radio_parms_t *radio_parms)
-// ------------------------------------------------------------------------------------------------
-{
-	return ((float)(radio_parms->f_xtal) / (1 << 28)) * (256 + radio_parms->drate_m) * (1 << radio_parms->drate_e);
-}
 
 // ------------------------------------------------------------------------------------------------
 // Wait for the reception or transmission to finish
@@ -936,7 +921,7 @@ void enque_tx_packet(SWPACKET* p_packet){
 }
 
 void resend_packet(const CCPACKET* p_packet){ 
-	verbprintf(3,"RE from thread id %i\n",getpid());    	
+	//verbprintf(3,"Resend %i\n",getpid());    	
 	circular_incr(radio_int_data.tx_buff_idx_ins);		
 	//printf(" ----RE---- to insert AT %i : %s \n", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
 	tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].copy(p_packet); //copy the packet to the buffer
