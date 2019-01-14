@@ -3,18 +3,21 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "util.h"
+#include <time.h>
 
 int verbose_level = 0;
-
+static struct tm * timeinfo;
+time_t rawtime;
 // -------------------------------------------------------------------------------------------------
 void _verbprintf(int verb_level, const char *fmt, ...)
 // -------------------------------------------------------------------------------------------------
 {
     int flush = 1;
-
     if (verb_level > verbose_level)
         return;
-
+    time ( &rawtime );
+    timeinfo = localtime ( &rawtime );    
+    fprintf(stderr, "[%02d/%02d/%02d %d:%d:%d] ",timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year - 100, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
     va_list args;
     va_start(args, fmt);
 

@@ -24,6 +24,8 @@ static std::string subscribe_config_topic;
 static std::string subscribe_radionodes_stat_topic;
 static std::string subscribe_stat_topic;
 static std::string publish_status_topic;
+static std::string publish_alarm_topic;
+static std::string publish_avail_topic;
 static std::string errorlog_topic;
 static std::string client_name;
 static std::string publish_to;
@@ -62,39 +64,69 @@ class mqtt_msg_ex: public exception
   }
 } ;
 
-int mqtt_send_actor_state(int actor_id, int register_addr, SWDATA* data){    
-    std::ostringstream topic;
-    topic << publish_status_topic <<  std::to_string(actor_id) << "/" << std::to_string(register_addr) ;
-    if (data->is_string){
-        return mosquitto_publish(mosq, NULL, topic.str().c_str(), data->length, data->chardata, 2, true);
+void safe_publish (const char *topic, int payloadlen, const void *payload){
+    int ret = mosquitto_publish(mosq, NULL, topic, payloadlen, payload, 2, true);
+    if (ret != MOSQ_ERR_SUCCESS){
+        verbprintf(3,"ERROR: mqtt: Publishing  failed on topic: %s \n", topic);
+        if (ret == MOSQ_ERR_NO_CONN){ 
+            //conenction is lost. Try to reconnect. The message is not lost, it will be retransmitted on reconnect
+            fprintf(stderr, "MQTT conn lost. Try reconnect\n");
+            mosquitto_reconnect_async(mosq);
+        }
     }else{
-        std::string decimalVal = std::to_string(data->bytedata);
-        return mosquitto_publish(mosq, NULL, topic.str().c_str(), decimalVal.length(), decimalVal.c_str(), 2, true);
+        verbprintf(3,"mqtt: Publish OK on topic: %s \n", topic);
     }
 }
 
-int mqtt_send(const char* topic, const char* msg){
-    return mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 1, true);
+void mqtt_send_actor_state(int actor_id, int register_addr, SWDATA* data){    
+    std::ostringstream topic;
+    topic << publish_status_topic <<  std::to_string(actor_id) << "/" << std::to_string(register_addr) ;
+    if (data->is_string){
+        safe_publish(topic.str().c_str(), data->length, data->chardata);
+    }else{
+        std::string decimalVal = std::to_string(data->bytedata);
+        safe_publish(topic.str().c_str(), decimalVal.length(), decimalVal.c_str());
+    }
+}
+
+void mqtt_send_alarm(int actor_id, const char* alarm_text){    
+    std::ostringstream topic;
+    topic << publish_alarm_topic <<  std::to_string(actor_id) ;
+    safe_publish(topic.str().c_str(), strlen(alarm_text), alarm_text);
+}
+
+void mqtt_send_avail(int actor_id, bool avail){    
+    std::ostringstream topic;
+    topic << publish_avail_topic <<  std::to_string(actor_id) ;
+    if (avail)
+        safe_publish(topic.str().c_str(), 1, "U");
+    else
+        safe_publish(topic.str().c_str(), 0, ""); //delete message
+}
+
+
+void mqtt_send(const char* topic, const char* msg){
+    safe_publish(topic, strlen(msg), msg);
 }
 
 int handle_actor_message(actorRegister* areg, std::string payload){
     //printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
     int regValue = std::stoi(payload);
     SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
-    enque_tx_packet(&command);
+    enque_tx_packet(&command, true);
     return MQTT_OK;
 }    
 
 int handle_radionodes_stat(actorRegister* areg, std::string payload){
     //printf("handle_radionodes_descr %i %s\n", actor_id, payload.c_str() );    
     SWQUERY query = SWQUERY(areg->actorId, areg->actorId, areg->regId);
-    enque_tx_packet(&query);
+    enque_tx_packet(&query, true);
     return MQTT_OK;
 };
 
 int handle_config_message(actorRegister* areg, std::string payload){
     //TODO: implement me
-    printf("handle_config_message %i %s\n", areg->actorId, payload.c_str() );
+    //printf("handle_config_message %i %s\n", areg->actorId, payload.c_str() );
     return MQTT_OK;
 };
 
@@ -106,14 +138,14 @@ int handle_stat_message(){
 
 void logError(const struct mosquitto_message *message, const char* source, const char* errmsg){
     std::string payload = std::string((char*) message->payload, message->payloadlen);
- 	verbprintf(3,"Topic: %s Payload: %s\n", message->topic, payload.c_str());
+ 	verbprintf(3,"mqtt: Topic: %s Payload: %s\n", message->topic, payload.c_str());
 
     std::ostringstream stringStream;
     stringStream << "ERROR: mqtt exception on msg " << message->topic << " with payload >" << payload << "< : " << source << " " << errmsg;
     std::string em = stringStream.str();
     fprintf(stderr, "%s\n",em.c_str());
     //log the error on the mqtt server
-    mqtt_send(errorlog_topic.c_str(), em.c_str());    
+    mqtt_send(errorlog_topic.c_str(), em.c_str());
 }
 
 void handle_message(const struct mosquitto_message *message){
@@ -162,6 +194,7 @@ void handle_message(const struct mosquitto_message *message){
 
 void on_message_callback(struct mosquitto *mosq, void *userdata, const struct mosquitto_message *message)
 {
+    
     std::string errmsg ;
     try{
         handle_message(message);
@@ -200,7 +233,7 @@ void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
 void on_subscribe_callback(struct mosquitto *mosq, void *userdata, int mid, int qos_count, const int *granted_qos)
 {
 	int i;
-	verbprintf(2, "Subscribed  (mid: %d): %d", mid, granted_qos[0]);
+	verbprintf(3, "Subscribed  (mid: %d): %d", mid, granted_qos[0]);
 	for(i=1; i<qos_count; i++){
 		verbprintf(2, ", %d", granted_qos[i]);
 	}
@@ -209,7 +242,9 @@ void on_subscribe_callback(struct mosquitto *mosq, void *userdata, int mid, int 
 
 void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const char *str)
 {
-    verbprintf(5, "mqtt log: %s\n", str);
+    if ((level & MOSQ_LOG_WARNING) || (level & MOSQ_LOG_ERR)){
+        verbprintf(5, "mqtt %i: %s\n", level, str);
+    }
 }
 
 void mqtt_stop(){
@@ -244,6 +279,16 @@ bool mqtt_init(){
         die("Missing publish_status_topic in mqtt section of ini file");
     }    
 
+    publish_alarm_topic.assign(inireader->Get("mqtt","publish_alarm_topic", UNDEF));    
+    if(publish_alarm_topic == UNDEF){
+        die("Missing publish_alarm_topic in mqtt section of ini file");
+    }    
+
+    publish_avail_topic.assign(inireader->Get("mqtt","publish_avail_topic", UNDEF));    
+    if(publish_avail_topic == UNDEF){
+        die("Missing publish_avail_topic in mqtt section of ini file");
+    }   
+
     errorlog_topic.assign(inireader->Get("mqtt","errorlog_topic", UNDEF));    
     if(errorlog_topic == UNDEF){
         die("Missing errorlog_topic in mqtt section of ini file");
@@ -261,10 +306,12 @@ bool mqtt_init(){
     mosquitto_connect_callback_set(mosq, on_connect_callback);
     mosquitto_message_callback_set(mosq, on_message_callback);
     
+    mosquitto_reconnect_delay_set(mosq, 2,10,true);
+
     int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
     inireader->GetInteger("mqtt", "broker_port", 1833),
     inireader->GetInteger("mqtt", "keepalive", 60)
-    )  ;
+    );
     if( conn_ret != MOSQ_ERR_SUCCESS){
         fprintf(stderr, "Unable to connect to mqtt broker.\n");
         return false;
@@ -276,4 +323,3 @@ bool mqtt_init(){
     };
     return true;
 };
-

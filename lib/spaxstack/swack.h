@@ -22,29 +22,26 @@
  * Creation date: 03/03/2011
  */
 
-#include "swstatus.h"
-#include "spaxstack.h"
+#ifndef _SWACK_H
+#define _SWACK_H
 
-/**
- * SWSTATUS
- * 
- * Class constructor
- * 
- * 'rId'	Register id
- * '*val'	New value
- * 'len'	Buffer length
- */
-SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len) 
+#include "swpacket.h"
+
+
+class SWACK : public SWPACKET
 {
-  destAddr = SWAP_BCAST_ADDR;
-  srcAddr = MASTER_ADDRESS;
-  hop = 0;
-  function = SWAPFUNCT_STA;
-  regAddr = MASTER_ADDRESS;
-  regId = registerId;
-  value.length = len;
-  value.chardata = val;
-  value.is_string = true;
-  request_ack=true;
-}
-
+  public:
+    /**
+     * SWACK
+     * 
+     * Class constructor
+     * 
+     * 'destAddr'	Destination address
+     * 'rAddr'	  Register address
+     */
+    SWACK(byte dAddr, byte pktNo, byte errorCode);
+    void prepare(CCPACKET* packet);
+  private: 
+    byte errorCode;
+};
+#endif

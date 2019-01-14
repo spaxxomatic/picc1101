@@ -33,7 +33,10 @@
  */
 #define SWAP_DATA_HEAD_LEN     6
 #define SWAP_REG_VAL_LEN       CC1101_DATA_LEN - SWAP_DATA_HEAD_LEN   // SWAP data payload - max length
-#define SWAP_BCAST_ADDR        0x00                                   // SWAP broadcast address
+
+#define SWAP_BCAST_ADDR       0x00                                   // SWAP broadcast address
+#define SWAP_MASTER_ADDRESS   0X01
+
 #define SWAP_NB_TX_TRIES       3                                      // Number of transmission retries
 #define SWAP_TX_DELAY          20         // Delay before sending
 
@@ -47,7 +50,8 @@ enum SWAPFUNCT
   SWAPFUNCT_STA = 0x00, // status packet
   SWAPFUNCT_QRY, // query packet
   SWAPFUNCT_CMD, // command packet
-  SWAPFUNCT_ACK // packet aknowledgment
+  SWAPFUNCT_ACK, // packet aknowledgment
+  SWAPFUNCT_ALARM // alarm packet
 };
 
 /**
@@ -113,6 +117,12 @@ class SWPACKET
      */
     SWDATA value;
 
+    /* link quality indicator */
+    uint8_t lqi; 
+    uint8_t rssi;
+    /* packet came encrypted or must be sent encrypted */
+    bool encrypted;
+    bool request_ack;
     /**
      * SWPACKET
      * 

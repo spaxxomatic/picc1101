@@ -33,6 +33,8 @@
 
 
 AckAwaitQueue ackAwaitQueue;
+Registrar registrar;
+
 sem_t sem_radio_irq; //semaphore for thread sync
 //static radio_int_data_t *p_radio_int_data = 0;
 extern int registerNewNode();
@@ -107,23 +109,27 @@ void irq_handle_packet(void) {
 	static CCPACKET packet;
 	packet.errorCode = 0;
 	uint8_t int_line = digitalRead(WPI_GDO0); // Sense interrupt line to determine if it was a raising or falling edge
-
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
-		{
-			//verbprintf(3, "RX R IRQ\n");
+		{ 
+			fprintf(stderr," R("); 
 			radio_int_data.packet_receive = 1;
 		}else{
+			fprintf(stderr,")R\n"); fflush(stderr);
 			//verbprintf(3, "RX F IRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
 			
-			// Any byte waiting to be read and no overflow?
-			//cout << "RClen " << to_string((uint)rxBytes) << "\n";
-			if (rxBytes & 0x7F && !(rxBytes & 0x80)) { 
+			// Any byte waiting to be read and no overflow?			
+			if (rxBytes & 0x80){ //overflow
+				verbprintf(3, "RX fifo ovrflw: \n"); //rx fifo is polluted by some surious reception
+			} else if (rxBytes & 0x7F) { //data in buffer
 				// Read data length
 				PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the data len
+				if (rxDataLength != rxBytes-3){
+					verbprintf(3, "   ???datalen %i vs %i \n", rxBytes, rxDataLength); //rx fifo is now polluted, data not usable, empty it
+				}
 				if (rxDataLength > CC1101_DATA_LEN) {
-					verbprintf(3, "Pkt too long\n");
+					verbprintf(3, "Pkt too long: %i \n", rxDataLength); //rx fifo is now polluted, data not usable, empty it
 				}
 				else {
 					//read the net data
@@ -153,15 +159,19 @@ void irq_handle_packet(void) {
 					}
 				}
 			}
+			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
+			PI_CC_SPIStrobe(PI_CCxxx0_SFRX); // Flush Rx FIFO
+			PI_CC_SPIStrobe(PI_CCxxx0_SRX); //turn on Rx again			
 			radio_int_data.packet_receive = 0; //receive done
 		}
 	}
 	else if (radio_int_data.mode == RADIOMODE_TX) {
 		if (int_line) {
+			fprintf(stderr," T("); 
 			radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
 			//verbprintf(3, "TX R IRQ\n");
-		}
-		else {
+		}else {
+			fprintf(stderr,")T\n"); fflush(stderr);
 			//verbprintf(3, "TX F IRQ\n");
 			if (radio_int_data.packet_send) // packet has been sent
 			{
@@ -324,7 +334,8 @@ int setup_spi(arguments_t *arguments, const char* spi_device){
 	return ret;
 }
 
-int reset_radio(){
+int reset_radio(const char* reason){
+	verbprintf(0, "\nRESET RADIO: (reason: %s)\n", reason);
 	radio_parameters.f_xtal = 26000000;         // 26 MHz Xtal
 	radio_parameters.f_if = 310000;           // 304.6875 kHz (lowest point below 310 kHz)
 	int ret = init_radio();
@@ -343,11 +354,7 @@ int init_radio()
 {
 	int ret = 0;
 	uint8_t  reg_word;
-
-	verbprintf(1, "\ninit_radio...\n");
-
 	ret = PI_CC_PowerupResetCCxxxx(); // reset chip
-
 	if (ret != 0)
 	{
 		fprintf(stderr, "RADIO: cannot reset CC1101 chip, RC=%d\n", ret);
@@ -778,8 +785,7 @@ void radio_wait_free()
 		timeout ++;
 		if (timeout > RADIO_WATCHDOG_TIMEOUT/50){
 			//we should reset the radio - it must be hanging
-			printf("ERROR: Tx/Rx IRQ state change timer expired. Resetting radio\n");
-			reset_radio();
+			reset_radio("ERROR: Tx/Rx IRQ state change timer expired.");
 			return;
 		}
 	}
@@ -793,6 +799,8 @@ void radio_init_rx()
 	radio_int_data.mode = RADIOMODE_RX;
 	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
+
+
 
 /*
 * radio_process_packet
@@ -812,7 +820,20 @@ uint8_t radio_process_packet() {
 		no_of_packets++;
 		switch (swPacket.function)
 		{
-		case SWAPFUNCT_STA: //status update
+		case SWAPFUNCT_ALARM: //Alarm packet. Error reason is coded in the regAddr field
+			{	
+				//char valbuff[sizeof(CCPACKET::data)];
+				//swPacket.val_to_string(valbuff);
+				//verbprintf(1, "ALARM: src: %i %s \n", swPacket.srcAddr,  valbuff);
+				//mqtt_send_alarm(swPacket.srcAddr, valbuff);
+				verbprintf(1, "ALARM: src: %i %i \n", swPacket.srcAddr,  swPacket.regAddr);
+				mqtt_send_alarm(swPacket.srcAddr, getAlarmText(swPacket.regAddr));
+			}
+			break;			
+		case SWAPFUNCT_ACK: //ack packet. Might contain an error in the regAddr field
+			verbprintf(4, "ACK: ERR: %s \n", getStackErrorText(swPacket.regAddr));
+			break;
+		case SWAPFUNCT_STA: //status packet
 			if (swPacket.destAddr == MASTER_ADDRESS || swPacket.destAddr == BROADCAST_ADDRESS) {
 					//std::string val; 
 					//val.insert(0, swPacket.value.data, swPacket.value.length);
@@ -821,31 +842,22 @@ uint8_t radio_process_packet() {
 					char valbuff[sizeof(CCPACKET::data)];
 					swPacket.val_to_string(valbuff);
 					verbprintf(2,"Received stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
-					
 					//not very elegant to directly send to mqtt, but for now let's leave it so
 					//We should rather use a buffer and decouple packet decode from sending responses
+					//but mqtt runs in another thread, so it's not a big deal
 					//std::ostringstream s_msg;
 					//s_msg << std::to_string(swPacket.regId) << ':' << valbuff;
 					//const std::string msg = s_msg.str();
 					mqtt_send_actor_state(swPacket.srcAddr, swPacket.regId, &swPacket.value);
-			}
-			break;			
-		case SWAPFUNCT_ACK:
-			if (swPacket.destAddr == MASTER_ADDRESS) {
-				//std::cout << "ack pkt "<< (int)swPacket.packetNo << " for " << (int)swPacket.srcAddr << "\n";
-				ackAwaitQueue.ack_packet(swPacket.srcAddr, swPacket.packetNo);
 			}
 			break;
 		case SWAPFUNCT_CMD:
 			// Command not addressed to us?
 			if (swPacket.destAddr != MASTER_ADDRESS)
 				break;
-			// Destination address and register address must be the same
-			if (swPacket.destAddr != swPacket.regAddr)
-				break;
-			// Filter incorrect data lengths
+			// TODO: implement me
 		case SWAPFUNCT_QRY:
-			// Query not addressed to us?
+			// Query addressed to us?
 			if (swPacket.destAddr != MASTER_ADDRESS)
 				break;
 			if (swPacket.destAddr != swPacket.regAddr)
@@ -857,8 +869,23 @@ uint8_t radio_process_packet() {
 			}*/
 			break;
 		default:
+			verbprintf(1, "ERR: Unknown swapfunc %i", swPacket.function);
 			break;
 		}
+		
+		//link management
+		if (swPacket.destAddr == MASTER_ADDRESS){ //packet addressed to us
+			//Aknowledgement of a previously sent packet
+			ackAwaitQueue.ack_packet(swPacket.srcAddr, swPacket.packetNo);
+			//make sure this radio link is registered to trigger later the heartbeat
+			registrar.registerLink(swPacket.srcAddr,swPacket.lqi);
+			
+			if (swPacket.request_ack) {//ack requested
+				SWACK ack = SWACK(swPacket.srcAddr,swPacket.packetNo,STACKERR_OK);
+				verbprintf(1, "Sending ACK to %i", swPacket.srcAddr);
+				enque_tx_packet(&ack, false);
+			}
+		}		
 	}
 	return no_of_packets;
 }
@@ -878,8 +905,8 @@ bool transmit_packets() { //sends a radio packet
 			radio_wait_free();
 			//PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, 0x02); // GDO2 output pin config TX mode
 			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
-			PI_CC_SPIStrobe(PI_CCxxx0_SFTX); //flush the fifo buffer
-			
+			PI_CC_SPIStrobe(PI_CCxxx0_SFTX); //flush the TX fifo buffer
+			PI_CC_SPIStrobe(PI_CCxxx0_SFRX); //flush the RX fifo buffer
 			//PI_CC_SPIWriteReg(PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
 			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, &packet->length, 1); //must write burst or the radio hangs
 			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, (uint8_t *)packet->data, packet->length); //write the payload data
@@ -889,7 +916,7 @@ bool transmit_packets() { //sends a radio packet
 			PI_CC_SPIStrobe(PI_CCxxx0_STX); // Kick-off Tx
 			if (!wait_for_tx_end(20)) {
 				//timeout
-				printf("ERROR: transmit failed");
+				verbprintf(0, "ERROR: transmit failed");
 			}; // Wait max 10ms
 			//radio_wait_free();
 			//PI_CC_SPIStrobe(PI_CCxxx0_SFTX); // Flush Tx FIFO
@@ -897,7 +924,7 @@ bool transmit_packets() { //sends a radio packet
 			//packet must be aknowledged, add it to the ack buffer			
 			if (!wait_for_state(CCxxx0_STATE_RX, 100)) {
 				//timeout
-				reset_radio(); //should not happend, but if, at least try to leave the radio in a defined state
+				reset_radio("ERROR: UNDEFINED STATE AFTER TX"); //should not happend, but if, at least try to leave the radio in a defined state
 				//return false;
 			};
 			// Declare to be in Rx state
@@ -909,14 +936,15 @@ bool transmit_packets() { //sends a radio packet
 }
 
 //reentrant, thread-safe function for inserting the packets to be sent in the transmit buffer
-void enque_tx_packet(SWPACKET* p_packet){ 
+void enque_tx_packet(SWPACKET* p_packet, bool awaitAck){ 
 	//verbprintf(3,"EE thread id %i\n",getpid());  
 	circular_incr(radio_int_data.tx_buff_idx_ins);	
 	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]); //prepare sets the packet no too
 	//printf(" ----EN---- to insert AT %i : %s ", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
 	//printf(" ----EN---- inserted AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
 	transmit_packets();
-	ackAwaitQueue.append(p_packet->destAddr, p_packet->packetNo, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
+	if (awaitAck)
+		ackAwaitQueue.append(p_packet->destAddr, p_packet->packetNo, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
 	//printf(" ----EN---- awaitq AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
 }
 

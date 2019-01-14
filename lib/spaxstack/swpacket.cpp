@@ -40,16 +40,20 @@ SWPACKET::SWPACKET(CCPACKET* packet)
 {
   destAddr = packet->data[0];
   srcAddr = packet->data[1];
-  hop = (packet->data[2] >> 4) & 0x0F;
+  byte ctrlbyte = packet->data[2];
+  hop = ( ctrlbyte >> 4) & 0x0F;
   packetNo = packet->data[3];
   function = packet->data[4];
-  if (function != SWAPFUNCT_ACK){ //an ack packet has no data
-    regAddr = packet->data[5];
+  lqi = packet->lqi;
+  rssi = packet->rssi;
+  regAddr = packet->data[5];
+  if (function != SWAPFUNCT_ACK){
     regId = packet->data[6];
     value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
-    
+    encrypted = bitRead(ctrlbyte, 1);
+    request_ack = bitRead(ctrlbyte, 2);
     //lsb of data[2] indicates the data type, 1->string, 0->number
-    value.is_string = bitRead(packet->data[2], 0);
+    value.is_string = bitRead(ctrlbyte, 0);
     if (value.is_string){
       value.chardata = packet->data + 7;
     }else{
@@ -83,6 +87,8 @@ void SWPACKET::prepare(CCPACKET* packet)
   packet->data[0] = destAddr;
   packet->data[1] = srcAddr;
   packet->data[2] = (hop << 4) & 0xF0;
+  if (encrypted) bitSet(packet->data[2], 1);
+  if (request_ack) bitSet(packet->data[2], 2);
   packet->data[3] = packetNo;
   packet->data[4] = function;
   packet->data[5] = regAddr;
@@ -95,13 +101,11 @@ void SWPACKET::prepare(CCPACKET* packet)
   }else{
     packet->data[7] = value.bytedata;
   }
-
 }
 
-
 char* SWPACKET::as_string(char* buffer){
-  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i\n ", 
-  destAddr, srcAddr, packetNo, function, regAddr, regId, value.length);
+  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i ENC: %i RACK: %i LQI: %i\n ", 
+  destAddr, srcAddr, packetNo, function, regAddr, regId, value.length, encrypted, request_ack, lqi);
   return buffer;
 }
 

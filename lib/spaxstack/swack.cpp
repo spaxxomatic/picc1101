@@ -18,33 +18,43 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 
  * USA
  * 
- * Author: Daniel Berenguer, Lucian Nutiu 
- * Creation date: 03/03/2011
+ * Author: Lucian Nutiu 
+ * Creation date: 03/01/2019
  */
 
-#include "swstatus.h"
+#include "swack.h"
+#include <stdlib.h>
 #include "spaxstack.h"
+#include <ctype.h>
+#include <string.h>
+
 
 /**
- * SWSTATUS
+ * SWACK
  * 
  * Class constructor
  * 
- * 'rId'	Register id
- * '*val'	New value
- * 'len'	Buffer length
+ * 'dAddr'	  Destination address
+ * 'rAddr'	  Register address
  */
-SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len) 
+SWACK::SWACK(byte dAddr, byte pktNo, byte errorCode)
 {
-  destAddr = SWAP_BCAST_ADDR;
+  destAddr = dAddr;
   srcAddr = MASTER_ADDRESS;
   hop = 0;
-  function = SWAPFUNCT_STA;
-  regAddr = MASTER_ADDRESS;
-  regId = registerId;
-  value.length = len;
-  value.chardata = val;
-  value.is_string = true;
-  request_ack=true;
+  function = SWAPFUNCT_ACK;
+  packetNo = pktNo;
+  request_ack=false;
+  regAddr = errorCode; //the SWACK stores the error code in the regAddr (which goes to byte 5 of the CCPACKET)
 }
 
+void SWACK::prepare(CCPACKET* packet)
+{
+  packet->length = 6;
+  packet->data[0] = destAddr;
+  packet->data[1] = srcAddr;
+  packet->data[2] = hop;
+  packet->data[3] = packetNo;
+  packet->data[4] = SWAPFUNCT_ACK; //the function  
+  packet->data[5] = regAddr; //the function  
+}

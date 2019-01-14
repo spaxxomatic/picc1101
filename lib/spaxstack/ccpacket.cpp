@@ -24,7 +24,7 @@ void CCPACKET::copy(const CCPACKET* source) { //copy constructor
 
 std::string CCPACKET::to_string() const {
   std::stringstream ss;
-  ss << "PKT: ( ERR " << (int) errorCode << ") LEN " << std::to_string(length) << ") : ";
+  ss << "PKT: ( ERR " << (int) errorCode << ") LEN " << std::to_string(length) << ": ";
   for (int i = 0; i < length; i++){
       if (i > 0) ss << ":";
     ss << std::hex << (int) data[i];

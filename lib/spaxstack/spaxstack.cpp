@@ -46,25 +46,6 @@ SPAXSTACK::SPAXSTACK(void)
   bDebug = false;
 }
 
-
-/**
- * getRegister
- *
- * Return pointer to register with ID = regId
- *
- * 'regId'  Register ID
- */
-REGISTER * getRegister(byte regId)
-{
-  //nutiu TODO
-  /*
-  if (regId >= regTableSize)
-    return NULL;
-  return regTable[regId]; 
-  */
- return NULL;
-}
-
 /**
  * init
  * 

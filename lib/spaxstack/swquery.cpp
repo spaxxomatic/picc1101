@@ -45,5 +45,6 @@ SWQUERY::SWQUERY(byte dAddr, byte rAddr, byte rId)
   value.chardata = NULL;
   value.length = 0;
   value.is_string = false;
+  request_ack=true;
 }
 

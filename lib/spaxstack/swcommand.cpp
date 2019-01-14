@@ -51,6 +51,7 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte val)
   value.bytedata = val;
   value.length = 1;
   value.is_string = false;
+  request_ack=true;
 }
 
 SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, char* val, int length)

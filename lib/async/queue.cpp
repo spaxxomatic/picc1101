@@ -3,6 +3,8 @@
 #include "../../util.h"
 
 #define PKTKEY(a,b) a<<8|b
+#define ADDR_OF_KEY(a) a>>8
+#define PKTNO_OF_KEY(a) a&0x00FF
 
   AckAwaitQueue::AckAwaitQueue() : taskDelay( 500 ),
       startTime( std::chrono::steady_clock::now() ) // only used for debugging
@@ -39,9 +41,6 @@
 	  if (it != mapPacketAwaitAck.end()){
           CCPACKET& packet = it->second;
           packet.ack_ok = true;
-          //TODO: as of now, we hold a single packet for each destination. 
-          //If we implement a multi-packet queue, we'll have to find the right packet with the given packetNo 
-          //and aknowledge only this one
     }
   }
 
@@ -83,12 +82,13 @@
             mapPacketAwaitAck.erase(it);
           }else{ //resend packet and increment the counter
             if (packet->retry >= MAX_RESEND_RETRY){
-              verbprintf(5, "Max resend reached for key %i. Dropping \n" , key );
+              verbprintf(4, "Max resend reached for key %i. Dropping \n" , key );
               //mapPacketAwaitAck.erase(lastkey);   
-              mapPacketAwaitAck.erase(it);   
+              mapPacketAwaitAck.erase(it);
+              registrar.incrErrCnt(ADDR_OF_KEY(key));
             }else{
               packet->incr_retry_cnt();
-              verbprintf(5, "%i resend for key %i \n" , packet->retry , key );
+              verbprintf(4, "%i resend for addr %i pktno %i \n" , packet->retry , ADDR_OF_KEY(key), PKTNO_OF_KEY(key));
               resend_packet(packet);
             }
         } 

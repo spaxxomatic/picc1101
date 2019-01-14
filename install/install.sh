@@ -1,5 +1,5 @@
 #adduser --system --group --no-create-home spaxx
-
+systemctl stop spaxxserver
 mkdir -p /var/lib/spaxx/
 cp spaxxserver.ini /var/lib/spaxx/spaxxserver.ini
 #chown spaxx:spaxx /var/lib/spaxx
@@ -14,7 +14,7 @@ mkdir -p $LOGFOLDER
 cp spaxxserver /usr/sbin/spaxxserver
 cp install/spaxxserver.service /etc/systemd/system/spaxxserver.service 
 # Start spaxxserver
-systemctl stop spaxxserver
+
 systemctl daemon-reload
 systemctl start spaxxserver
 

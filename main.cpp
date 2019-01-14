@@ -148,6 +148,7 @@ int main (int argc, char **argv)
         if (i != SIGKILL
             && i != SIGSEGV
             && i != SIGSTOP
+            && i != SIGHUP
             && i != SIGVTALRM
             && i != SIGWINCH
             && i != SIGPROF) 
@@ -175,25 +176,9 @@ int main (int argc, char **argv)
 	const char* spi_device = inireader->Get("SPI","device", "/dev/spidev0.0").c_str();
   
     setup_spi(&arguments, spi_device);
-    ret = reset_radio();
-
-    if (ret != 0)
-    {
-        fprintf(stderr, "PICC: Cannot initialize radio link, RC=%d\n", ret);
-        delete_args(&arguments);
-        return ret;
-    }
-
-    if (arguments.print_radio_status)
-    {
-        fprintf(stderr, "\n--- Radio state ---\n");
-        print_radio_status();
-    }
-    else
-    {
-        server_run( &arguments);    
-    }
-
+    
+    server_run( &arguments);    
+    
     delete_args(&arguments);
     return 0;
 }

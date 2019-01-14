@@ -106,14 +106,5 @@ class SPAXSTACK
  */
 extern SPAXSTACK commstack;
 
-/**
- * getRegister
- *
- * Return pointer to register with ID = regId
- *
- * 'regId'  Register ID
- */
-REGISTER * getRegister(byte regId);
-
 #endif
 

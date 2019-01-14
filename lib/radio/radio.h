@@ -16,10 +16,12 @@
 #include "../spaxstack/ccpacket.h"
 #include "../spaxstack/swpacket.h"
 #include "../spaxstack/spaxstack.h"
+#include "../spaxstack/swack.h"
 #include <pthread.h>
 #include <unistd.h>
 #include <semaphore.h>
 #include "../async/queue.h"
+#include "registrar.h"
 
 extern sem_t sem_radio_irq;
 
@@ -81,7 +83,7 @@ typedef enum radio_mode_e
     RADIOMODE_TX_END
 } radio_mode_t;
  
-#define BUFF_SIZE 8
+#define BUFF_SIZE 0xFF
 
 typedef volatile struct radio_int_data_s 
 {
@@ -104,9 +106,10 @@ volatile static int packets_received = 0;
 
 extern const char *state_names[];
 extern AckAwaitQueue ackAwaitQueue;
+extern Registrar registrar;
 
 int     setup_spi(arguments_t *arguments, const char* spi_device);
-int     reset_radio();
+int     reset_radio(const char* reason);
 int     init_radio();
 void    init_radio_int();
 void    radio_init_rx();
@@ -122,6 +125,6 @@ uint8_t radio_get_packet_length();
 
 void    radio_wait_free();
 
-void    enque_tx_packet(SWPACKET* p_packet);
+void    enque_tx_packet(SWPACKET* p_packet, bool awaitAck=true);
 void    resend_packet(const CCPACKET* p_packet);
 #endif
