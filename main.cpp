@@ -38,15 +38,21 @@ static struct argp_option options[] = {
 
 static void delete_args(arguments_t *arguments);
 
-// ------------------------------------------------------------------------------------------------
-// Terminator
 static void terminate(const int signal_) {
-// ------------------------------------------------------------------------------------------------
-    printf("PICC: Terminating with signal %d\n", signal_);
+    printf(" Terminating with signal %d\n", signal_);
     delete_args(&arguments);
     exit(1);
 }
 
+// ------------------------------------------------------------------------------------------------
+// Terminator
+/*
+void terminate(const int signal, siginfo_t *info, void *_unused)
+{
+  fprintf(stderr, "Terminating with SIGTERM received from process with pid = %u\n", info->si_pid);
+  exit(1);
+}
+*/
 // ------------------------------------------------------------------------------------------------
 // Init arguments
 static void init_args(arguments_t *arguments)

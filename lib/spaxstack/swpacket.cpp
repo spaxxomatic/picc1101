@@ -52,12 +52,18 @@ SWPACKET::SWPACKET(CCPACKET* packet)
     value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
     encrypted = bitRead(ctrlbyte, 1);
     request_ack = bitRead(ctrlbyte, 2);
-    //lsb of data[2] indicates the data type, 1->string, 0->number
+    //lsb of data[2] indicates the data type, 1->string, 0->numeric
     value.is_string = bitRead(ctrlbyte, 0);
     if (value.is_string){
       value.chardata = packet->data + 7;
     }else{
-      value.bytedata = *(packet->data + 7);
+      if (value.length > 4){
+        value.bytedata = 0;
+        fprintf(stderr, "Invalid pkt len %i", value.length);
+      }else{
+        value.bytedata = 0;
+        memcpy(&value.bytedata, packet->data + 7, value.length);
+      }
     }
   }
 }
@@ -104,8 +110,8 @@ void SWPACKET::prepare(CCPACKET* packet)
 }
 
 char* SWPACKET::as_string(char* buffer){
-  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X LEN: %i ENC: %i RACK: %i LQI: %i\n ", 
-  destAddr, srcAddr, packetNo, function, regAddr, regId, value.length, encrypted, request_ack, lqi);
+  sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X ENC: %i RACK: %i LQI: %i RSSI: %i LEN: %i ", 
+  destAddr, srcAddr, packetNo, function, regAddr, regId, encrypted, request_ack, lqi, rssi, value.length);
   return buffer;
 }
 

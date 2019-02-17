@@ -124,9 +124,15 @@ int handle_radionodes_stat(actorRegister* areg, std::string payload){
     return MQTT_OK;
 };
 
-int handle_config_message(actorRegister* areg, std::string payload){
+int handle_server_config_message(actorRegister* areg, std::string payload){
     //TODO: implement me
     //printf("handle_config_message %i %s\n", areg->actorId, payload.c_str() );
+    // if (areg->actorId == 1){
+    //     if (areg->regId == "CHANNEL")
+    //     std::string payload = std::string((char*) message->payload, message->payloadlen);
+ 	//     verbprintf(3,"mqtt: Server config: Payload: %s\n", message->topic, payload.c_str());
+    //     areg.regId = std::stoi(payload);
+    // }
     return MQTT_OK;
 };
 

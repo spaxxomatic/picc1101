@@ -52,6 +52,7 @@ typedef struct radio_parms_s
     float              deviat_factor; // FSK-2 deviation is +/- data rate divised by this factor
     uint32_t           freq_word;     // Frequency 24 bit word FREQ[23..0]
     uint8_t            if_word;       // Intermediate frequency 5 bit word FREQ_IF[4:0] 
+    uint8_t            channel;       // CC1101 channel
 } radio_parms_t;
 
 typedef enum radio_int_scheme_e 
@@ -122,7 +123,8 @@ int     print_radio_status();
 
 int     radio_set_packet_length( uint8_t pkt_len);
 uint8_t radio_get_packet_length();
-
+int     radio_set_channel( uint8_t channel);
+uint8_t radio_get_channel();
 void    radio_wait_free();
 
 void    enque_tx_packet(SWPACKET* p_packet, bool awaitAck=true);

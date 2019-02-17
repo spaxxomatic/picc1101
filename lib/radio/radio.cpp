@@ -31,7 +31,8 @@
 #include "cc1101_defvals.h"
 #include "pi_cc_cc1101.h"
 
-
+#include "../inih/inireader.h"
+extern INIReader* inireader ;
 AckAwaitQueue ackAwaitQueue;
 Registrar registrar;
 
@@ -187,13 +188,13 @@ void irq_handle_packet(void) {
 float rssi_dbm(uint8_t rssi_dec)
 // ------------------------------------------------------------------------------------------------
 {
-	if (rssi_dec < 128)
+	if (rssi_dec >= 128)
 	{
-		return (rssi_dec / 2.0) - 74.0;
+		return ((rssi_dec - 256) / 2.0) - 74.0;
 	}
 	else
 	{
-		return ((rssi_dec - 256) / 2.0) - 74.0;
+		return (rssi_dec / 2.0) - 74.0;
 	}
 }
 
@@ -207,8 +208,7 @@ bool wait_for_tx_end(uint32_t timeout)
 	{
 		usleep(500);
 		PI_CC_SPIReadStatus(PI_CCxxx0_MARCSTATE, &fsm_state);
-		fsm_state &= 0x1F;
-		//verbprintf(1, "   modem in state %s \n", state_names[fsm_state]);
+		fsm_state &= 0x1F; //state change timer
 		if ((fsm_state != 0x13) && (fsm_state != 0x14) && (fsm_state != 0x15)) {
 			break;
 		}
@@ -338,6 +338,7 @@ int reset_radio(const char* reason){
 	verbprintf(0, "\nRESET RADIO: (reason: %s)\n", reason);
 	radio_parameters.f_xtal = 26000000;         // 26 MHz Xtal
 	radio_parameters.f_if = 310000;           // 304.6875 kHz (lowest point below 310 kHz)
+	radio_parameters.channel = inireader->GetInteger("RADIO","channel", 0);
 	int ret = init_radio();
 	if (ret == 0){
 		radio_flush_fifos();
@@ -413,10 +414,10 @@ int init_radio()
 	PI_CC_SPIWriteReg(PI_CCxxx0_SYNC1, CC1101_DEFVAL_SYNC1);
 	PI_CC_SPIWriteReg(PI_CCxxx0_SYNC0, CC1101_DEFVAL_SYNC0);
 
-	//nutiu PI_CC_SPIWriteReg( PI_CCxxx0_ADDR,     0x00); // Device address for packet filtration (unused, see just above).
 	PI_CC_SPIWriteReg(PI_CCxxx0_ADDR, MASTER_ADDRESS);
-	//PI_CC_SPIWriteReg(PI_CCxxx0_ADDR, 0xFF);
-	PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, 0x00); // Channel number (unused, use direct frequency programming).
+
+	//PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, CC1101_DEFVAL_CHANNR); // Channel number
+	PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, radio_parameters.channel);
 
 
 	// FSCTRL0: Frequency offset added to the base frequency before being used by the
@@ -429,7 +430,6 @@ int init_radio()
 	
 	//radio_parms->if_word = get_if_word(radio_parms->f_xtal, radio_parms->f_if);
 	//PI_CC_SPIWriteReg( PI_CCxxx0_FSCTRL1, (radio_parms->if_word & 0x1F)); // Freq synthesizer control.
-	//xxnutiu PI_CC_SPIWriteReg(PI_CCxxx0_FSCTRL1, 0x08); // Freq synthesizer control.
 
 	// FREQ2..0: Base frequency for the frequency sythesizer
 	// Fo = (Fxosc / 2^16) * FREQ[23..0]
@@ -442,7 +442,6 @@ int init_radio()
 	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, CC1101_DEFVAL_FREQ1_433); // Freq control word, mid byte.
 	PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, CC1101_DEFVAL_FREQ0_433);  // Freq control word, low byte.
 
-
 	// MODCFG4 Modem configuration - bandwidth and data rate exponent
 	// High nibble: Sets the decimation ratio for the delta-sigma ADC input stream hence the channel bandwidth
 	// . bits 7:6: 0  -> CHANBW_E: exponent parameter (see next)
@@ -452,7 +451,6 @@ int init_radio()
 	// Low nibble:
 	// . bits 3:0: 13 -> DRATE_E: data rate base 2 exponent => here 13 (multiply by 8192)
 	//reg_word = (radio_parms->chanbw_e << 6) + (radio_parms->chanbw_m << 4) + radio_parms->drate_e;
-	//PI_CC_SPIWriteReg( PI_CCxxx0_MDMCFG4,  reg_word); // Modem configuration.
 	PI_CC_SPIWriteReg(PI_CCxxx0_MDMCFG4, CC1101_DEFVAL_MDMCFG4); // Modem configuration.
 
 	// MODCFG3 Modem configuration: DRATE_M data rate mantissa as per formula:
@@ -465,7 +463,6 @@ int init_radio()
 	// o bits 6:4: xxx -> (provided)
 	// o bit 3:    0   -> Manchester disabled (1: enable)
 	// o bits 2:0: 011 -> Sync word qualifier is 30/32 (static init in radio interface)
-	//reg_word = (get_mod_word(arguments->modulation)<<4) + radio_parms->sync_ctl;
 	PI_CC_SPIWriteReg(PI_CCxxx0_MDMCFG2, CC1101_DEFVAL_MDMCFG2); // Modem configuration.
 
 	// MODCFG1 Modem configuration: FEC, Preamble, exponent for channel spacing
@@ -473,7 +470,6 @@ int init_radio()
 	// o bits 6:4: 2   -> number of preamble bytes (0:2, 1:3, 2:4, 3:6, 4:8, 5:12, 6:16, 7:24)
 	// o bits 3:2: unused
 	// o bits 1:0: CHANSPC_E: exponent of channel spacing (here: 2)
-	//reg_word = (arguments->fec<<7) + (((int) arguments->preamble)<<4) + (radio_parms->chanspc_e);
 	PI_CC_SPIWriteReg(PI_CCxxx0_MDMCFG1, CC1101_DEFVAL_MDMCFG1); // Modem configuration.
 
 	// MODCFG0 Modem configuration: CHANSPC_M: mantissa of channel spacing following this formula:
@@ -690,7 +686,7 @@ int init_radio()
 	PI_CC_SPIWriteReg(PI_CCxxx0_FSCAL0, CC1101_DEFVAL_FSCAL0); // Frequency synthesizer cal.
 
 	PI_CC_SPIWriteReg(PI_CCxxx0_FSTEST, 0x59); // Frequency synthesizer cal.
-
+	PI_CC_SPIWriteReg(PI_CCxxx0_PATABLE, PA_LongDistance);
 	// TEST2: Various test settings. The value to write in this field is given by the SmartRF Studio software.
 	//PI_CC_SPIWriteReg( PI_CCxxx0_TEST2,    0x88); // Various test settings.
 	PI_CC_SPIWriteReg(PI_CCxxx0_TEST2, CC1101_DEFVAL_TEST2); // Various test settings.
@@ -748,8 +744,12 @@ int  print_radio_status()
 	fprintf(stderr, "FIFO Rx overflow ......: %d\n", ((regs[11] & 0x80) >> 7));
 	fprintf(stderr, "FIFO Rx bytes .........: %d\n", regs[11] & 0x7F);
 	fprintf(stderr, "RC CRTL0 ..............: %d\n", (regs[12] & 0x7F));
-	fprintf(stderr, "RC CRTL1 ..............: %d\n", (regs[13] & 0x7F));
-
+	fprintf(stderr, "RC CRTL1 ..............: %d\n", (regs[13] & 0x7F));	
+	//packet length
+	fprintf(stderr, "PKT LEN ..............: %d\n", radio_get_packet_length());
+	//Channel and freq
+	fprintf(stderr, "Channel ..............: %d\n", radio_get_channel());
+	
 	return ret;
 }
 
@@ -772,7 +772,23 @@ uint8_t radio_get_packet_length()
 	return pkt_len;
 }
 
+// ------------------------------------------------------------------------------------------------
+// Set packet length
+int radio_set_channel(uint8_t channel)
+// ------------------------------------------------------------------------------------------------
+{
+	return PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, channel); // Packet length.
+}
 
+// ------------------------------------------------------------------------------------------------
+// Get channel
+uint8_t radio_get_channel()
+// ------------------------------------------------------------------------------------------------
+{
+	uint8_t chan;
+	PI_CC_SPIReadReg(PI_CCxxx0_CHANNR, &chan); // Packet length.
+	return chan;
+}
 // ------------------------------------------------------------------------------------------------
 // Wait for the reception or transmission to finish
 void radio_wait_free()
@@ -800,8 +816,6 @@ void radio_init_rx()
 	PI_CC_SPIWriteReg(PI_CCxxx0_IOCFG2, CC1101_DEFVAL_IOCFG2); // GDO2 output pin config RX mode
 }
 
-
-
 /*
 * radio_process_packet
 * decode a received packet
@@ -815,6 +829,7 @@ uint8_t radio_process_packet() {
 		//verbprintf(3, "rx %i rxread %i\n", radio_int_data.rx_buff_idx, radio_int_data.rx_buff_read_idx);
 		//rx_ccpacket_buf[radio_int_data.rx_buff_read_idx].printAsHex();
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
+		verbprintf(4,"ADDR %i RSSI %.1f dB \n", swPacket.srcAddr ,rssi_dbm(swPacket.rssi));
 		char buff[512];
 		verbprintf(4, "RCV: SW packet: %s", swPacket.as_string(buff));
 		no_of_packets++;
@@ -841,7 +856,7 @@ uint8_t radio_process_packet() {
 					/* a buffer for holding a string representation of the payload */
 					char valbuff[sizeof(CCPACKET::data)];
 					swPacket.val_to_string(valbuff);
-					verbprintf(2,"Received stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
+					verbprintf(2,"\nReceived stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
 					//not very elegant to directly send to mqtt, but for now let's leave it so
 					//We should rather use a buffer and decouple packet decode from sending responses
 					//but mqtt runs in another thread, so it's not a big deal
@@ -907,11 +922,17 @@ bool transmit_packets() { //sends a radio packet
 			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
 			PI_CC_SPIStrobe(PI_CCxxx0_SFTX); //flush the TX fifo buffer
 			PI_CC_SPIStrobe(PI_CCxxx0_SFRX); //flush the RX fifo buffer
-			//PI_CC_SPIWriteReg(PI_CCxxx0_TXFIFO, packet->length); //first pos in fifo is the packet length
+			PI_CC_SPIWriteReg(PI_CCxxx0_PATABLE, PA_LongDistance); //set transmit power
+			//set freq (should not be neccessary, but we had some strange freq shifts)
+			PI_CC_SPIWriteReg(PI_CCxxx0_FREQ2, CC1101_DEFVAL_FREQ2_433); // Freq control word, high byte
+			PI_CC_SPIWriteReg(PI_CCxxx0_FREQ1, CC1101_DEFVAL_FREQ1_433); // Freq control word, mid byte.
+			PI_CC_SPIWriteReg(PI_CCxxx0_FREQ0, CC1101_DEFVAL_FREQ0_433);  // Freq control word, low byte.
+			PI_CC_SPIWriteReg(PI_CCxxx0_CHANNR, radio_parameters.channel); // Channel number
+			
 			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, &packet->length, 1); //must write burst or the radio hangs
 			PI_CC_SPIWriteBurstReg(PI_CCxxx0_TXFIFO, (uint8_t *)packet->data, packet->length); //write the payload data
 			
-			radio_int_data.mode = RADIOMODE_TX; //incoming interrupt mush be handled as TX 
+			radio_int_data.mode = RADIOMODE_TX; //incoming interrupt must be handled as TX 
 			
 			PI_CC_SPIStrobe(PI_CCxxx0_STX); // Kick-off Tx
 			if (!wait_for_tx_end(20)) {
@@ -937,9 +958,8 @@ bool transmit_packets() { //sends a radio packet
 
 //reentrant, thread-safe function for inserting the packets to be sent in the transmit buffer
 void enque_tx_packet(SWPACKET* p_packet, bool awaitAck){ 
-	//verbprintf(3,"EE thread id %i\n",getpid());  
 	circular_incr(radio_int_data.tx_buff_idx_ins);	
-	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]); //prepare sets the packet no too
+	p_packet->prepare(&tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins]);
 	//printf(" ----EN---- to insert AT %i : %s ", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
 	//printf(" ----EN---- inserted AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
 	transmit_packets();
@@ -949,10 +969,9 @@ void enque_tx_packet(SWPACKET* p_packet, bool awaitAck){
 }
 
 void resend_packet(const CCPACKET* p_packet){ 
-	//verbprintf(3,"Resend %i\n",getpid());    	
 	circular_incr(radio_int_data.tx_buff_idx_ins);		
 	//printf(" ----RE---- to insert AT %i : %s \n", radio_int_data.tx_buff_idx_ins , p_packet->to_string().c_str());
-	tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].copy(p_packet); //copy the packet to the buffer
+	tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].copy(p_packet); //copy the packet to the transmit buffer
 	//printf(" ----RE--- inserted AT %i : %s \n", radio_int_data.tx_buff_idx_ins, tx_ccpacket_buf[radio_int_data.tx_buff_idx_ins].to_string().c_str());
 	transmit_packets();
 }

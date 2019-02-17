@@ -91,7 +91,6 @@ void server_init(arguments_t *arguments)
 
   sem_init(&sem_radio_irq, 0, 0);
 
-  struct sigaction sa;
   struct itimerval timer;
 
   /* Install periodic_task as the signal second_tick for SIGALRM. */

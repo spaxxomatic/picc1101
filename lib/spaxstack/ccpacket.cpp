@@ -37,10 +37,11 @@ void CCPACKET::incr_retry_cnt() {
 }
 
 void CCPACKET::printAsHex(){
-  printf("LEN: %i ERR: %i DATA:", length, errorCode);  
+  fprintf(stderr, "LEN: %i ERR: %i DATA:", length, errorCode);  
   for (int i = 0; i < length; i++){
       if (i > 0) printf(":");
-    printf("%02X", data[i]);
+    fprintf(stderr, "%02X", data[i]);
   }
-  printf("\n");
+  fprintf(stderr,"\n");
+  fflush(stderr);
 } 

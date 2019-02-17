@@ -149,6 +149,7 @@
 #define PI_CCxxx0_FIFO_SIZE         64     // Rx or Tx FIFO size
 #define PI_CC1101_DATA_LEN          PI_CCxxx0_FIFO_SIZE - 3
 
+
 // FSM states
 typedef enum ccxxx0_state_e {
     CCxxx0_STATE_SLEEP = 0,
