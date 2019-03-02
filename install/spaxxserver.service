@@ -1,5 +1,6 @@
 [Unit]
 Description=Spaxxserver CC1101 Radio Mqtt Interface
+Wants=mosquitto.service
 After=syslog.target network.target mosquitto.service
 
 [Service]

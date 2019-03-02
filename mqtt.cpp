@@ -191,7 +191,7 @@ void handle_message(const struct mosquitto_message *message){
             if (subscribe_actors_topic == strTopic)
                 handle_actor_message(&areg, payload);
             else if (subscribe_config_topic == strTopic)
-                handle_config_message(&areg, payload);
+                handle_server_config_message(&areg, payload);
             else if (subscribe_radionodes_stat_topic == strTopic)
                 handle_radionodes_stat(&areg, payload);            
         }   

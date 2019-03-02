@@ -86,8 +86,16 @@ void server_init(arguments_t *arguments)
   
   int ret = reset_radio("STARTUP");
   if (ret != 0) die("Cannot initialize radio link\n");
-  //connect to mqtt broker
-  if (!mqtt_init()) die("Mqtt failure, exiting\n");
+  //try to connect to mqtt broker, retry on failure up to 10 times
+  int retry=10;
+  while (retry>0){
+    if (!mqtt_init()) {
+      verbprintf(1, "Retry mqtt connect");
+      retry--;
+      sleep(2);
+    }else break;
+  }
+  if (retry == 0) die("Mqtt failure, exiting\n");
 
   sem_init(&sem_radio_irq, 0, 0);
 
