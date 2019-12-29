@@ -113,16 +113,16 @@ void irq_handle_packet(void) {
 	if (radio_int_data.mode == RADIOMODE_RX) {
 		if (int_line)
 		{ 
-			fprintf(stderr," R("); 
+			fprintf(stderr," R->"); 
 			radio_int_data.packet_receive = 1;
 		}else{
-			fprintf(stderr,")R\n"); fflush(stderr);
+			fprintf(stderr,"<-R\n"); fflush(stderr);
 			//verbprintf(3, "RX F IRQ\n");
 			PI_CC_SPIReadStatus(PI_CCxxx0_RXBYTES, &rxBytes);
 			
 			// Any byte waiting to be read and no overflow?			
 			if (rxBytes & 0x80){ //overflow
-				verbprintf(3, "RX fifo ovrflw: \n"); //rx fifo is polluted by some surious reception
+				verbprintf(3, "RX fifo ovrflw: \n"); //rx fifo is polluted by some spurious reception
 			} else if (rxBytes & 0x7F) { //data in buffer
 				// Read data length
 				PI_CC_SPIReadReg(PI_CCxxx0_RXFIFO, &rxDataLength); //first byte contains the data len
@@ -159,6 +159,10 @@ void irq_handle_packet(void) {
 						sem_post(&sem_radio_irq);
 					}
 				}
+			} else {
+				verbprintf(3, "RX fifo unhandled condition %.2X:\n", rxBytes); 
+				radio_int_data.mode = RADIOMODE_UNDEF_CONDITION; //this will trigger a radio reset
+				return;
 			}
 			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
 			PI_CC_SPIStrobe(PI_CCxxx0_SFRX); // Flush Rx FIFO
@@ -168,11 +172,11 @@ void irq_handle_packet(void) {
 	}
 	else if (radio_int_data.mode == RADIOMODE_TX) {
 		if (int_line) {
-			fprintf(stderr," T("); 
+			fprintf(stderr," T->"); 
 			radio_int_data.packet_send = 1; // Assert packet transmission after sync has been sent
 			//verbprintf(3, "TX R IRQ\n");
 		}else {
-			fprintf(stderr,")T\n"); fflush(stderr);
+			fprintf(stderr,"<-T\n"); fflush(stderr);
 			//verbprintf(3, "TX F IRQ\n");
 			if (radio_int_data.packet_send) // packet has been sent
 			{
@@ -801,6 +805,7 @@ void radio_wait_free()
 		timeout ++;
 		if (timeout > RADIO_WATCHDOG_TIMEOUT/50){
 			//we should reset the radio - it must be hanging
+			verbprintf(4,"TOUT MODE=%i packet_receive=%i packet_send=%i", radio_int_data.mode, radio_int_data.packet_receive, radio_int_data.packet_send);
 			reset_radio("ERROR: Tx/Rx IRQ state change timer expired.");
 			return;
 		}
@@ -821,6 +826,10 @@ void radio_init_rx()
 * decode a received packet
 */
 uint8_t radio_process_packet() {
+	if (radio_int_data.mode == RADIOMODE_UNDEF_CONDITION){
+		reset_radio("RADIO_UNDEFINED_STATE");
+		return 0;
+	};
 	if (radio_int_data.rx_buff_idx == radio_int_data.rx_buff_read_idx)
 		return 0; //nothing to do, no new packets in the receive buffer. This should actually not happend.
 	uint8_t no_of_packets = 0;

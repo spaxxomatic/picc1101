@@ -5,7 +5,7 @@
 #include <sys/time.h>
 
 extern int verbose_level;
-
+void print_buffer(int verb_level, char* prefix, char* buff, int len);
 void _verbprintf(int verb_level, const char *fmt, ...);
 void _print_block(int verb_level, const uint8_t *pblock, size_t size);
 

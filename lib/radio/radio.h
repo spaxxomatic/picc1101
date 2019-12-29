@@ -67,7 +67,8 @@ typedef enum radio_int_scheme_e
 typedef enum radio_errors_e {
     RADIO_PACKET_OK = 0,
     RADIOERR_PACKET_TOO_LONG ,
-    RADIOERR_PACKET_CRC_ERR
+    RADIOERR_PACKET_CRC_ERR, 
+    RADIOERR_PACKET_UNHANDLED_RX_COND
 } radio_errors_t;
 
 typedef struct
@@ -81,7 +82,8 @@ typedef enum radio_mode_e
     RADIOMODE_NONE = 0,
     RADIOMODE_RX,
     RADIOMODE_TX, 
-    RADIOMODE_TX_END
+    RADIOMODE_TX_END, 
+    RADIOMODE_UNDEF_CONDITION
 } radio_mode_t;
  
 #define BUFF_SIZE 0xFF

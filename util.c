@@ -30,6 +30,21 @@ void _verbprintf(int verb_level, const char *fmt, ...)
     va_end(args);
 }
 
+void print_buffer(int verb_level, char* prefix, char* buff, int len){
+    if (verb_level > verbose_level)
+        return;
+    
+        fprintf(stderr,prefix);
+        fprintf(stderr,": ");
+        int i = 0;
+        for ( i = 0; i < len; i++) {
+            fprintf(stderr,"%.2X:", buff[i]);
+        }
+		fprintf(stderr,"\n");
+        fflush(stderr);  
+}
+
+
 // -------------------------------------------------------------------------------------------------
 void _print_block(int verb_level, const uint8_t *pblock, size_t size)
 // -------------------------------------------------------------------------------------------------
