@@ -162,6 +162,8 @@ void irq_handle_packet(void) {
 			} else {
 				verbprintf(3, "RX fifo unhandled condition %.2X:\n", rxBytes); 
 				radio_int_data.mode = RADIOMODE_UNDEF_CONDITION; //this will trigger a radio reset
+				radio_int_data.packet_receive = 0; //receive done
+				sem_post(&sem_radio_irq);
 				return;
 			}
 			PI_CC_SPIStrobe(PI_CCxxx0_SIDLE);// Enter IDLE state
