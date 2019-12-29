@@ -1,4 +1,4 @@
-spaxmatic
+spaxxserver
 ========
 
 Connects an Orange Pi or Raspberry Pi to CC1101 RF module and implements the spaxstack IoT protocol
@@ -74,20 +74,9 @@ You can use option -T of the program to get an even lower priority of -2 for a s
  <pre><code>
   -i, --ini=INIFILE   INI file, (default : ./spaxxserver.ini)
   -H, --long-help            Print a long help and exit
-  -l, --packet-delay=DELAY_UNITS   Delay between successive radio blocks when
-                             transmitting a larger block. In 2-FSK byte
-                             duration units. (default 30)
   -s, --radio-status         Print radio status and exit
-  -t, --test-mode=TEST_SCHEME   Test scheme, See long help (-H) option fpr
-                             details (default : 0 no test)
-      --tnc-switchover-delay=SWITCHOVER_DELAY_US
-                             FUTUR USE: TNC switchover delay in microseconds
-                             (default: 0 inactive)
-  -T, --real-time            Engage so called "real time" scheduling (defalut
-                             0: no)
   -v, --verbose=VERBOSITY_LEVEL   Verbosity level: 0 quiet else verbose level
                              (default : quiet)
-  -W, --whitening            Activate whitening (default off)
   -?, --help                 Give this help list
       --usage                Give a short usage message
       --version              Print program version
@@ -104,118 +93,7 @@ It ranges from 0 to 4:
   - 3: Adds details on interrupt calls
   - 4: Adds full hex dump of sent and received blocks
 
-Be aware that printing out to console takes time and might cause problems when transfer speeds and interactivity increase.
-
-### Radio interface speeds (-R)
- <pre><code>
-Value: Rate (Baud):
- 0     50 (experimental)
- 1     110 (experimental)
- 2     300 (experimental)
- 3     600
- 4     1200
- 5     2400
- 6     4800
- 7     9600
- 8     14400
- 9     19200
-10     28800
-11     38400
-12     57600
-13     76800
-14     115200
-15     250000
-16     500000 (300000 for 4-FSK)
-</code></pre>
-
-### Modulations (-M)
- <pre><code>
-Value: Scheme:
-0      OOK
-1      2-FSK
-2      4-FSK
-3      MSK
-4      GFSK
-</code></pre>
-
-Note: MSK does not seem to work too well at least with the default radio options.
-
-### Test routines (-t)
- <pre><code>
-Value: Scheme:
-0      No test (KISS virtual TNC)
-1      Simple Tx with polling. Packet smaller than 64 bytes
-2      Simple Tx with packet interrupt handling. Packet up to 255 bytes
-3      Simple Rx with polling. Packet smaller than 64 bytes
-4      Simple Rx with packet interrupt handling. Packet up to 255 bytes
-5      Simple echo test starting with Tx
-6      Simple echo test starting with Rx
-</code></pre>
-
-# AX.25/KISS operation
-## Set up the AX.25/KISS environment
-### Kernel modules
-You will need to activate the proper options in the `make menuconfig` of your kernel compilation in order to get the `ax25` and `mkiss` modules. It comes by default in most pre-compiled kernels.
-
-Load the modules with `modprobe` command:
-  - `sudo modprobe ax25`
-  - `sudo modprobe mkiss`
-
-Alternatively you can specify these modules to be loaded at boot time by adding their names in the `/etc/modules` file
-
-### Install AX.25 and KISS software
-  - `sudo apt-get install ax25-apps ax25-node ax25-tools libax25`
-
-</code></pre>
-
-### Create a virtual serial link
- - `socat d -d pty,link=/var/ax25/axp1,raw,echo=0 pty,link=/var/ax25/axp2,raw,echo=0 &`
-
-Note the `&` at the end that allows the command to run in background.
-
-This creates two serial devices at the end of a virtual serial cable. 
-They are accessible via the symlinks specified in the command:
-  - /var/ax25/axp1
-  - /var/ax25/axp2
-
-AX.25/KISS engine will be attached to the `axp1` end and the program to `axp2`.
-
-### Create the network device using kissattach
-  - `sudo kissattach /var/ax25/axp1 radio0 10.0.1.7`
-  - `sudo ifconfig ax0 netmask 255.255.255.0`
-
-This will create the `ax0` network device as shown by the `/sbin/ifconfig` command:
- <pre><code>
-ax0       Link encap:AMPR AX.25  HWaddr F4EXB-15  
-          inet addr:10.0.1.7  Bcast:10.0.1.255  Mask:255.255.255.0
-          UP BROADCAST RUNNING  MTU:224  Metric:1
-          RX packets:3033 errors:24 dropped:0 overruns:0 frame:0
-          TX packets:3427 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:10 
-          RX bytes:483956 (472.6 KiB)  TX bytes:446797 (436.3 KiB)
-</code></pre>
-
-### Scripts that will run these commands
-In the `scripts` directory you will find:
-  - `kissdown.sh`: kills all processes and removes the `ax0` network interface from the system
-  - `kissup.sh <IP> <Netmask>`: brings up the `ax0` network interface with IP address <IP> and net mask <Netmask>
-
-Examples:
-  - `./kissdown.sh`
-  - `./kissup.sh 10.0.1.3 255.255.255.0`
-
-## Run the program
-This example will set the CC1101 at 9600 Baud with GFSK modulation. We raise the priority of the process (lower the priority number down to 0) with the `nice` command:
-
-  - `sudo nice -n -20 ./picc1101 -v1 -B 9600 -P 252 -R7 -M4 -W -l15`
-
-Other options are:
-  - verbosity level (-v) of 1 will only display basic execution messages, errors and warnings
-  - radio block size (-P) is fixed at 252 bytes
-  - data whitening is in use (-W)
-  - inter-block pause when sending multiple blocks (see next) is set for a 15 bytes transmission time approximately (-l) 
-
-Note that you have to be super user to execute the program.
+Be aware that printing out to console might cause problems with transfer speeds and interfere with real time operations.
 
 ## Relay the KST chat
 As a sidenote this is the way you can relay the KST chat (that is port 23000 of a specific server) through this radio link. 
@@ -240,15 +118,3 @@ At the reception end the radio block countdown is checked and if it is not zero 
 This allows the transmission of greater blocks of up to 2^16 = 64k = 65536 bytes.
 
 If any block is corrupted (bad CRC) or if its countdown counter is out of sequence then the whole greater block is discarded. This effectively puts a limit on the acceptable fragmentation depending on the quality of the link.
-
-## Mitigate AX.25/KISS spurious packet retransmissions
-In the latest versions an effort has been made to try to mitigate unnecessary packet retransmissions. These are generally caused by fragmenting packet chains too early. In return the ACK from the other end is received too early and synchronization is broken. Because of its robust handshake mechanism TCP/IP eventually recovers but some time is wasted.
-
-To mitigate this effect when a packet is received on the serial link if another packet is received before some delay expires it is concatenated to the previous packet(s). The packets are sent over the air after this delay or if a radio packet has been received. This delay is called the TNC serial window.
-
-The same mechanism exists on the radio side to possibly concatenate radio packets before they are sent on the serial line. The corresponding delay is called the TNC radio window.
-
-These delays can be entered on the command line with the following long options with arguments in microseconds. The defaults have proved satisfactory on a 9600 Baud 2-FSK with 252 byte packets transmission. You may want to play with them or tweak them for different transmission characteristics:
-  - `--tnc-serial-window`: defaults to 40ms. 
-  - `--tnc-radio-window`: defaults to 0 that is no delay. Once the packet is received it will be immediately transfered to the serial link. At 9600 Baud 2-FSK with 250 byte packets the transmission time is already 208ms.
-  
