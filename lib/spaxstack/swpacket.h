@@ -54,7 +54,6 @@ enum SWAPFUNCT
   SWAPFUNCT_ALARM // alarm packet
 };
 
-const char* SWAPFUNCT_NAMES[SWAPFUNCT_ALARM+1]; 
 
 /**
  * Structure: SWDATA

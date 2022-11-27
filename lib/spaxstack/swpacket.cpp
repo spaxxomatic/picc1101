@@ -29,7 +29,7 @@
 #include "../types.h"
 #include "memory.h"
 
-SWAPFUNCT_NAMES = {
+const char* SWWAPFUNCT_NAMES[]  = {
   "Status", "Query", "Command", "Ack", "Alarm"
 };
 
