@@ -29,6 +29,10 @@
 #include "../types.h"
 #include "memory.h"
 
+SWAPFUNCT_NAMES = {
+  "Status", "Query", "Command", "Ack", "Alarm"
+};
+
 /**
  * SWPACKET
  * 
