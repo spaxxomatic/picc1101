@@ -36,10 +36,7 @@ const void setTxInterval(uint8_t id, uint8_t *interval);
  * The registers common to all SWAP devices
  */
 enum CUSTOM_REGINDEX                    
-{                                       
-  REGI_PRODUCTCODE = 0,                 
-  REGI_HWVERSION,                       
-  REGI_FWVERSION,                       
+{                                                       
   REGI_FREQCHANNEL,                     
   REGI_NETWORKID,                       
   REGI_DEVADDRESS,                      
@@ -47,9 +44,6 @@ enum CUSTOM_REGINDEX
 };
 
 typedef struct t_common_registers {
-        byte dtProductCode[8],
-        byte dtHwVersion[4],
-        byte dtFwVersion[4],
         typeof(commstack.cc1101.channel) channel,
         typeof(commstack.cc1101.syncWord) syncWord,
         typeof(commstack.cc1101.devAddress) devAddress,

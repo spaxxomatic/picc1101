@@ -18,5 +18,5 @@ cp install/spaxxserver.service /etc/systemd/system/spaxxserver.service
 systemctl daemon-reload
 systemctl start spaxxserver
 
-# Enable Redis to Start at Boot
+# Enable Start at Boot
 systemctl enable spaxxserver

@@ -53,6 +53,9 @@ enum SWAPFUNCT
   SWAPFUNCT_ACK, // packet aknowledgment
   SWAPFUNCT_ALARM // alarm packet
 };
+const char* SWAPFUNCT_NAMES[SWAPFUNCT_ALARM+1] = {
+  "Status", "Query", "Command", "Ack", "Alarm"
+};
 
 /**
  * Structure: SWDATA
