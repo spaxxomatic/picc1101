@@ -28,6 +28,8 @@ static std::string publish_alarm_topic;
 static std::string publish_avail_topic;
 static std::string errorlog_topic;
 static std::string client_name;
+static std::string mqtt_user;
+static std::string mqtt_password;
 static std::string publish_to;
 
 typedef struct  {
@@ -301,9 +303,15 @@ bool mqtt_init(){
     }        
     
     client_name = inireader->Get("mqtt","client_name", "SPAXXSERVER");    
+    mqtt_user = inireader->Get("mqtt","mqtt_user", "");
+    mqtt_password = inireader->Get("mqtt","mqtt_password", "");
+    
     mosquitto_lib_init();
 
     mosq = mosquitto_new(client_name.c_str(), true, NULL);
+    if (mqtt_user.length > 0){
+        mosquitto_username_pw_set(mosq, mqtt_user, mqtt_password);
+    }
     if(!mosq){
         fprintf(stderr, "Error: Out of memory.\n");
         return false;
