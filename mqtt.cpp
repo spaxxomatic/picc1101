@@ -309,7 +309,7 @@ bool mqtt_init(){
     mosquitto_lib_init();
 
     mosq = mosquitto_new(client_name.c_str(), true, NULL);
-    if (mqtt_user.length > 0){
+    if (mqtt_user.length() > 0){
         mosquitto_username_pw_set(mosq, mqtt_user, mqtt_password);
     }
     if(!mosq){
