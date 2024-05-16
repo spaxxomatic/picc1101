@@ -310,7 +310,7 @@ bool mqtt_init(){
 
     mosq = mosquitto_new(client_name.c_str(), true, NULL);
     if (mqtt_user.length() > 0){
-        mosquitto_username_pw_set(mosq, mqtt_user, mqtt_password);
+        mosquitto_username_pw_set(mosq, mqtt_user.c_str(), mqtt_password.c_str());
     }
     if(!mosq){
         fprintf(stderr, "Error: Out of memory.\n");
