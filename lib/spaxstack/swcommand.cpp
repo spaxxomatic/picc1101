@@ -54,7 +54,7 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte val)
   request_ack=true;
 }
 
-SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, char* val, int length)
+SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, const char* val, int length)
 {
   destAddr = dAddr;
   srcAddr = MASTER_ADDRESS;

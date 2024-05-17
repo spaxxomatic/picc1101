@@ -43,6 +43,6 @@ class SWCOMMAND : public SWPACKET
      * 'len'	    Buffer length
      */
     SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte val);
-    SWCOMMAND(byte dAddr, byte rAddr, byte registerId, char* val, int length);
+    SWCOMMAND(byte dAddr, byte rAddr, byte registerId, const char* val, int length);
 };
 #endif

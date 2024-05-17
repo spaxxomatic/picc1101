@@ -255,7 +255,7 @@ void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
         subscribe_topic(subscribe_radionodes_stat_topic,2);
         subscribe_topic(subscribe_stat_topic,1);
         //publish availability publish_status_topic                        
-        mqtt_send(spaxxserver_service_avail_topic, SPAXXSERVER_STATUS_ONLINE);
+        mqtt_send(spaxxserver_service_avail_topic.c_str(), SPAXXSERVER_STATUS_ONLINE);
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -279,7 +279,7 @@ void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const ch
 }
 
 void mqtt_stop(){
-    mqtt_send(spaxxserver_service_avail_topic, SPAXXSERVER_STATUS_OFFLINE);
+    mqtt_send(spaxxserver_service_avail_topic.c_str(), SPAXXSERVER_STATUS_OFFLINE);
     mosquitto_disconnect(mosq);
     mosquitto_loop_stop(mosq, true);
     mosquitto_destroy(mosq);  
@@ -348,7 +348,7 @@ bool mqtt_init(){
     mosquitto_log_callback_set(mosq, on_log_callback);
     mosquitto_connect_callback_set(mosq, on_connect_callback);
     mosquitto_message_callback_set(mosq, on_message_callback);    
-    mosquitto_will_set(mosq, spaxxserver_service_avail_topic, strlen(SPAXXSERVER_STATUS_OFFLINE), SPAXXSERVER_STATUS_OFFLINE, 1, true );
+    mosquitto_will_set(mosq, spaxxserver_service_avail_topic.c_str(), strlen(SPAXXSERVER_STATUS_OFFLINE), SPAXXSERVER_STATUS_OFFLINE, 1, true );
     mosquitto_reconnect_delay_set(mosq, 2, 10, true);
 
     int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
