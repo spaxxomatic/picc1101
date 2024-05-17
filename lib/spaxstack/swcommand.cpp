@@ -48,9 +48,9 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, byte val)
   function = SWAPFUNCT_CMD;
   regAddr = rAddr;
   regId = registerId;
-  value.bytedata = val;
-  value.length = 1;
-  value.is_string = false;
+  payload.bytedata = val;
+  payload.length = 1;
+  payload.is_string = false;
   request_ack=true;
 }
 
@@ -62,7 +62,7 @@ SWCOMMAND::SWCOMMAND(byte dAddr, byte rAddr, byte registerId, const char* val, i
   function = SWAPFUNCT_CMD;
   regAddr = rAddr;
   regId = registerId;
-  value.chardata = (byte*) val;
-  value.length = length;
-  value.is_string = true;
+  payload.chardata = (byte*) val;
+  payload.length = length;
+  payload.is_string = true;
 }
