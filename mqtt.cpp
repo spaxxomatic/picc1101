@@ -8,6 +8,7 @@
 #include <string>
 #include <regex>
 #include <stdlib.h>
+#include <ctype.h>
 #include "util.h"
 #include "lib/inih/inireader.h"
 
@@ -118,13 +119,18 @@ void mqtt_send(const char* topic, const char* msg){
 int handle_actor_message(actorRegister* areg, std::string payload){
     //printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
     int regValue = 0;
+    SWCOMMAND command;
     if (payload.length() > 0){
-        if (isdigit(payload)){
+        try
+        {        
             regValue = std::stoi(payload);
-            SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
-        }else[
-            SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
-        ]
+            command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
+        }catch (std::invalid_argument const& ex) 
+        { //send it as string
+            command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
+        }
+    }else{
+        command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, 0);
     }
     
     enque_tx_packet(&command, true);
