@@ -125,7 +125,6 @@ int handle_actor_message(actorRegister* areg, std::string payload){
         {        
             regValue = std::stoi(payload);
             command = new SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
-            enque_tx_packet(&command, true);
         }catch (std::invalid_argument const& ex) 
         { //send it as string
             command = new SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
