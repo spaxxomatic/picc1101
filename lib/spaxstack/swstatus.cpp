@@ -42,9 +42,9 @@ SWSTATUS::SWSTATUS(byte registerId, byte *val, byte len)
   function = SWAPFUNCT_STA;
   regAddr = MASTER_ADDRESS;
   regId = registerId;
-  value.length = len;
-  value.chardata = val;
-  value.is_string = true;
+  payload.length = len;
+  payload.chardata = val;
+  payload.is_string = true;
   request_ack=true;
 }
 
