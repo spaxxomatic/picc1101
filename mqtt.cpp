@@ -118,22 +118,24 @@ void mqtt_send(const char* topic, const char* msg){
 
 int handle_actor_message(actorRegister* areg, std::string payload){
     //printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
-    int regValue = 0;
-    SWCOMMAND command;
+    int regValue = 0;    
+    SWCOMMAND* command;
     if (payload.length() > 0){
         try
         {        
             regValue = std::stoi(payload);
-            command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
+            command = new SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
+            enque_tx_packet(&command, true);
         }catch (std::invalid_argument const& ex) 
         { //send it as string
-            command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
+            command = new SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
         }
     }else{
-        command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, 0);
+        command = new SWCOMMAND(areg->actorId, areg->actorId, areg->regId, 0);
     }
     
-    enque_tx_packet(&command, true);
+    enque_tx_packet(command, true);
+    delete command;
     return MQTT_OK;
 }    
 
