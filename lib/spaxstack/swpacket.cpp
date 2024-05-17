@@ -93,7 +93,7 @@ void SWPACKET::prepare(CCPACKET* packet)
   byte i;
   bool res;
   packetNo = commstack.sentPacketNo++;
-  packet->length = value.length + SWAP_DATA_HEAD_LEN + 1;
+  packet->length = payload.length + SWAP_DATA_HEAD_LEN + 1;
   packet->errorCode = 0;
   packet->data[0] = destAddr;
   packet->data[1] = srcAddr;
@@ -105,27 +105,27 @@ void SWPACKET::prepare(CCPACKET* packet)
   packet->data[5] = regAddr;
   packet->data[6] = regId;
   
-  if (value.is_string){
-    bitSet(packet->data[2], 0); //bit 0 is set, indicating a string value
-    for(i=0 ; i<value.length ; i++)
-      packet->data[i+7] = value.chardata[i];
+  if (payload.is_string){
+    bitSet(packet->data[2], 0); //bit 0 is set, indicating a string payload
+    for(i=0 ; i<payload.length ; i++)
+      packet->data[i+7] = payload.chardata[i];
   }else{
-    packet->data[7] = value.bytedata;
+    packet->data[7] = payload.bytedata;
   }
 }
 
 char* SWPACKET::as_string(char* buffer){
   sprintf(buffer, "DEST: %i SRC: %i PKTNO: %i FUNC: %i REGADDR: %02X REGID: %02X ENC: %i RACK: %i LQI: %i RSSI: %i LEN: %i ", 
-  destAddr, srcAddr, packetNo, function, regAddr, regId, encrypted, request_ack, lqi, rssi, value.length);
+  destAddr, srcAddr, packetNo, function, regAddr, regId, encrypted, request_ack, lqi, rssi, payload.length);
   return buffer;
 }
 
 char* SWPACKET::val_to_string(char* buffer){
-  if (value.is_string){
-    memcpy(buffer, value.chardata, value.length);
-    buffer[value.length] = '0'; //terminate string
+  if (payload.is_string){
+    memcpy(buffer, payload.chardata, payload.length);
+    buffer[payload.length] = '0'; //terminate string
   }else{
-    sprintf(buffer, "%ld", value.bytedata);
+    sprintf(buffer, "%ld", payload.bytedata);
   }
   return buffer;
 }
