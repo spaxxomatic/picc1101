@@ -852,7 +852,7 @@ uint8_t radio_process_packet() {
 				//swPacket.val_to_string(valbuff);
 				//verbprintf(1, "ALARM: src: %i %s \n", swPacket.srcAddr,  valbuff);
 				//mqtt_send_alarm(swPacket.srcAddr, valbuff);
-				verbprintf(1, "ALARM: src: %i %i \n", swPacket.srcAddr,  swPacket.regAddr);
+				verbprintf(1, "\nALARM: src: %i %i \n", swPacket.srcAddr,  swPacket.regAddr);
 				mqtt_send_alarm(swPacket.srcAddr, getAlarmText(swPacket.regAddr));
 			}
 			break;			

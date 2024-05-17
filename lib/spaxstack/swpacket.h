@@ -117,7 +117,7 @@ class SWPACKET
     /**
      * Register value
      */
-    SWDATA value;
+    SWDATA payload;
 
     /* link quality indicator */
     uint8_t lqi; 

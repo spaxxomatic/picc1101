@@ -51,22 +51,25 @@ SWPACKET::SWPACKET(CCPACKET* packet)
   lqi = packet->lqi;
   rssi = packet->rssi;
   regAddr = packet->data[5];
-  if (function != SWAPFUNCT_ACK){
+  if (function == SWAPFUNCT_ALARM){
+    
+  }
+  if (function != SWAPFUNCT_ACK)  
     regId = packet->data[6];
-    value.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
+    payload.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
     encrypted = bitRead(ctrlbyte, 1);
     request_ack = bitRead(ctrlbyte, 2);
     //lsb of data[2] indicates the data type, 1->string, 0->numeric
-    value.is_string = bitRead(ctrlbyte, 0);
-    if (value.is_string){
-      value.chardata = packet->data + 7;
+    payload.is_string = bitRead(ctrlbyte, 0);
+    if (payload.is_string){
+      payload.chardata = packet->data + 7;
     }else{
-      if (value.length > 4){
-        value.bytedata = 0;
-        fprintf(stderr, "Invalid pkt len %i", value.length);
+      if (payload.length > 4){
+        payload.bytedata = 0;
+        fprintf(stderr, "Invalid pkt len %i", payload.length);
       }else{
-        value.bytedata = 0;
-        memcpy(&value.bytedata, packet->data + 7, value.length);
+        payload.bytedata = 0;
+        memcpy(&payload.bytedata, packet->data + 7, payload.length);
       }
     }
   }

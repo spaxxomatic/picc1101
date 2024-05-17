@@ -53,6 +53,9 @@ const char* MQTT_ERR_MSG[MQTT_ERR_INVALID_TOPIC+1] = {
 
 #define CK_VALID_UINT8_T(V, ERR_CODE)  if (V <0 || V  >= 0xFF) throw(MQTT_ERR_MSG[ERR_CODE]);
 
+#define SPAXXSERVER_STATUS_ONLINE "online"
+#define SPAXXSERVER_STATUS_OFFLINE "offline"
+
 class mqtt_msg_ex: public exception
 {
   public:
@@ -113,8 +116,16 @@ void mqtt_send(const char* topic, const char* msg){
 
 int handle_actor_message(actorRegister* areg, std::string payload){
     //printf("handle_actor_message %i %s\n", areg->actorId, payload.c_str() );    
-    int regValue = std::stoi(payload);
-    SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
+    int regValue = 0;
+    if (payload.length() > 0){
+        if (isdigit(payload)){
+            regValue = std::stoi(payload);
+            SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, regValue);
+        }else[
+            SWCOMMAND command = SWCOMMAND(areg->actorId, areg->actorId, areg->regId, payload.c_str(), payload.length());
+        ]
+    }
+    
     enque_tx_packet(&command, true);
     return MQTT_OK;
 }    
@@ -229,10 +240,13 @@ void on_connect_callback(struct mosquitto *mosq, void *userdata, int result)
     verbprintf(3,"Connect: Thread id %i\n",getpid());	
 	if(!result){
         /* Subscribe to broker information topics on successful connect. */
+
         subscribe_topic(subscribe_actors_topic,1);
         subscribe_topic(subscribe_config_topic,1);
         subscribe_topic(subscribe_radionodes_stat_topic,2);
         subscribe_topic(subscribe_stat_topic,1);
+        //publish availability publish_status_topic                        
+        mqtt_send(spaxxomatic_service_avail_topic, SPAXXSERVER_STATUS_ONLINE);
 	}else{
 		fprintf(stderr, "Connect failed\n");
 	}
@@ -256,6 +270,7 @@ void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const ch
 }
 
 void mqtt_stop(){
+    mqtt_send(spaxxomatic_service_avail_topic, SPAXXSERVER_STATUS_OFFLINE);
     mosquitto_disconnect(mosq);
     mosquitto_loop_stop(mosq, true);
     mosquitto_destroy(mosq);  
@@ -297,6 +312,11 @@ bool mqtt_init(){
         die("Missing publish_avail_topic in mqtt section of ini file");
     }   
 
+    spaxxomatic_service_avail_topic.assign(inireader->Get("mqtt","spaxxomatic_service_avail_topic", UNDEF));    
+    if(spaxxomatic_service_avail_topic == UNDEF){
+        die("Missing spaxxomatic_service_avail_topic in mqtt section of ini file");
+    }   
+
     errorlog_topic.assign(inireader->Get("mqtt","errorlog_topic", UNDEF));    
     if(errorlog_topic == UNDEF){
         die("Missing errorlog_topic in mqtt section of ini file");
@@ -318,9 +338,9 @@ bool mqtt_init(){
     }
     mosquitto_log_callback_set(mosq, on_log_callback);
     mosquitto_connect_callback_set(mosq, on_connect_callback);
-    mosquitto_message_callback_set(mosq, on_message_callback);
-    
-    mosquitto_reconnect_delay_set(mosq, 2,10,true);
+    mosquitto_message_callback_set(mosq, on_message_callback);    
+    mosquitto_will_set(mosq, spaxxomatic_service_avail_topic, strlen(SPAXXSERVER_STATUS_OFFLINE), SPAXXSERVER_STATUS_OFFLINE, 1, true );
+    mosquitto_reconnect_delay_set(mosq, 2, 10, true);
 
     int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
     inireader->GetInteger("mqtt", "broker_port", 1833),
