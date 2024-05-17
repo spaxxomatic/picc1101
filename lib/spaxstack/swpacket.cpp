@@ -51,7 +51,7 @@ SWPACKET::SWPACKET(CCPACKET* packet)
   lqi = packet->lqi;
   rssi = packet->rssi;
   regAddr = packet->data[5];
-  if (function != SWAPFUNCT_ACK)  
+  if (function != SWAPFUNCT_ACK){
     regId = packet->data[6];
     payload.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
     encrypted = bitRead(ctrlbyte, 1);
