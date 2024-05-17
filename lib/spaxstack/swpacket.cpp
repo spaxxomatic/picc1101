@@ -51,9 +51,6 @@ SWPACKET::SWPACKET(CCPACKET* packet)
   lqi = packet->lqi;
   rssi = packet->rssi;
   regAddr = packet->data[5];
-  if (function == SWAPFUNCT_ALARM){
-    
-  }
   if (function != SWAPFUNCT_ACK)  
     regId = packet->data[6];
     payload.length = packet->length - SWAP_DATA_HEAD_LEN - 1;
@@ -62,14 +59,15 @@ SWPACKET::SWPACKET(CCPACKET* packet)
     //lsb of data[2] indicates the data type, 1->string, 0->numeric
     payload.is_string = bitRead(ctrlbyte, 0);
     if (payload.is_string){
-      payload.chardata = packet->data + 7;
+      payload.chardata = packet->data + SWAP_DATA_HEAD_LEN + 1;
+      verbprintf(1,"SWPACKET test message %s\n", payload.chardata);
     }else{
       if (payload.length > 4){
         payload.bytedata = 0;
         fprintf(stderr, "Invalid pkt len %i", payload.length);
       }else{
         payload.bytedata = 0;
-        memcpy(&payload.bytedata, packet->data + 7, payload.length);
+        memcpy(&payload.bytedata, packet->data + SWAP_DATA_HEAD_LEN + 1, payload.length);
       }
     }
   }
