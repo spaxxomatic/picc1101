@@ -278,8 +278,11 @@ void on_log_callback(struct mosquitto *mosq, void *userdata, int level, const ch
 }
 
 void mqtt_stop(){
+    verbprintf(2,"Mqtt stop - sending offline status message\n"); 
     mqtt_send(spaxxserver_service_avail_topic.c_str(), SPAXXSERVER_STATUS_OFFLINE);
+    usleep(10000);
     mosquitto_disconnect(mosq);
+    verbprintf(2,"Mqtt disconnected");    
     mosquitto_loop_stop(mosq, true);
     mosquitto_destroy(mosq);  
     mosquitto_lib_cleanup();
@@ -347,7 +350,11 @@ bool mqtt_init(){
     mosquitto_log_callback_set(mosq, on_log_callback);
     mosquitto_connect_callback_set(mosq, on_connect_callback);
     mosquitto_message_callback_set(mosq, on_message_callback);    
-    mosquitto_will_set(mosq, spaxxserver_service_avail_topic.c_str(), strlen(SPAXXSERVER_STATUS_OFFLINE), SPAXXSERVER_STATUS_OFFLINE, 1, true );
+    
+    if (mosquitto_will_set(mosq, spaxxserver_service_avail_topic.c_str(), strlen(SPAXXSERVER_STATUS_OFFLINE), SPAXXSERVER_STATUS_OFFLINE, 1, true ) != MOSQ_ERR_SUCCESS){
+        fprintf(stderr, "Unable to set will at start\n");
+    };
+
     mosquitto_reconnect_delay_set(mosq, 2, 10, true);
 
     int conn_ret = mosquitto_connect(mosq, inireader->Get("mqtt", "broker_ip", "localhost").data(),
