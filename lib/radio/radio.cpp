@@ -861,20 +861,17 @@ uint8_t radio_process_packet() {
 			break;
 		case SWAPFUNCT_STA: //status packet
 			if (swPacket.destAddr == MASTER_ADDRESS || swPacket.destAddr == BROADCAST_ADDRESS) {
-					//std::string val; 
-					//val.insert(0, swPacket.value.data, swPacket.value.length);
-					//val.c_str();
 					/* a buffer for holding a string representation of the payload */
 					char valbuff[sizeof(CCPACKET::data)];
 					swPacket.val_to_string(valbuff);
 					verbprintf(2,"\nReceived stat from ADDR %i REGID %i VAL %s\n", swPacket.srcAddr, swPacket.regId, valbuff);
 					//not very elegant to directly send to mqtt, but for now let's leave it so
 					//We should rather use a buffer and decouple packet decode from sending responses
-					//but mqtt runs in another thread, so it's not a big deal
+					//but the mqtt client runs in another thread, so it's not a big deal
 					//std::ostringstream s_msg;
 					//s_msg << std::to_string(swPacket.regId) << ':' << valbuff;
 					//const std::string msg = s_msg.str();
-					mqtt_send_actor_state(swPacket.srcAddr, swPacket.regId, &swPacket.value);
+					mqtt_send_actor_state(swPacket.srcAddr, swPacket.regId, &swPacket.payload);
 			}
 			break;
 		case SWAPFUNCT_CMD:
