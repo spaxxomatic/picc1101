@@ -1,7 +1,7 @@
 #ifndef _REGISTRAR_H_
 #define _REGISTRAR_H_
 
-#define CNT_ERROR_DEREGISTER 10
+#define CNT_ERROR_DEREGISTER 2
 
 class RADIOLINK {
     public:

@@ -842,7 +842,8 @@ uint8_t radio_process_packet() {
 		SWPACKET swPacket = SWPACKET(&rx_ccpacket_buf[radio_int_data.rx_buff_read_idx]);
 		verbprintf(4,"ADDR %i RSSI %.1f dB \n", swPacket.srcAddr ,rssi_dbm(swPacket.rssi));
 		char buff[512];
-		verbprintf(4, "RCV: SW packet: %s", swPacket.as_string(buff));
+		verbprintf(4, "RCV: SW packet: %s \n", swPacket.as_string(buff));
+		
 		no_of_packets++;
 		switch (swPacket.function)
 		{
@@ -852,7 +853,7 @@ uint8_t radio_process_packet() {
 				//swPacket.val_to_string(valbuff);
 				//verbprintf(1, "ALARM: src: %i %s \n", swPacket.srcAddr,  valbuff);
 				//mqtt_send_alarm(swPacket.srcAddr, valbuff);
-				verbprintf(1, "\nALARM: src: %i %i \n", swPacket.srcAddr,  swPacket.regAddr);
+				verbprintf(1, "ALARM: src: %i %i \n", swPacket.srcAddr,  swPacket.regAddr);
 				mqtt_send_alarm(swPacket.srcAddr, getAlarmText(swPacket.regAddr));
 			}
 			break;			
@@ -891,8 +892,12 @@ uint8_t radio_process_packet() {
 				//SWCOMMAND response = SWCOMMAND(0,0,REGI_DEVADDRESS,&newNodeAddr, 1);
 			}*/
 			break;
+		case SWAPFUNCT_DEV_INDENTIFIER:
+			//device sends its description
+			verbprintf(1, "DEV_INDENTIFIER: Addr %i descriptor %s \n", swPacket.function, swPacket.payload.chardata);
+			break;			
 		default:
-			verbprintf(1, "ERR: Unknown swapfunc %i", swPacket.function);
+			verbprintf(1, "ERR: Unknown swapfunc %i \n", swPacket.function);
 			break;
 		}
 		

@@ -15,7 +15,7 @@ bool mqtt_init();
 void mqtt_send(char* topic, char* msg);
 void mqtt_send_actor_state(int actor_id, int register_addr, SWDATA* data);
 void mqtt_send_alarm(int actor_id, const char* alarm_text);
-void mqtt_send_avail(int actor_id, bool avail); 
+void mqtt_send_radio_link_avail(int actor_id, bool avail); 
 
 enum MQTT_ERRORCODES 
 {

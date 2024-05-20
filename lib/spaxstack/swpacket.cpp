@@ -60,7 +60,7 @@ SWPACKET::SWPACKET(CCPACKET* packet)
     payload.is_string = bitRead(ctrlbyte, 0);
     if (payload.is_string){
       payload.chardata = packet->data + SWAP_DATA_HEAD_LEN + 1;
-      verbprintf(1,"SWPACKET test message %s\n", payload.chardata);
+      verbprintf(1,"SWPACKET text %s\n", payload.chardata);
     }else{
       if (payload.length > 4){
         payload.bytedata = 0;

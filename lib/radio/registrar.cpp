@@ -40,7 +40,8 @@ void Registrar::incrErrCnt(uint8_t address){
     RADIOLINK* link = getLink(address);
     if(link != NULL){
         link->error_count++;
-        if (link->error_count > CNT_ERROR_DEREGISTER){
+        if (link->error_count >= CNT_ERROR_DEREGISTER){
+            verbprintf(2,"Link lost with address %i, deregistering \n", address);
             deregisterLink(address);
         }
     } 
@@ -64,7 +65,7 @@ void Registrar::send_heartbeat(uint8_t address){
 void Registrar::deregisterLink(uint8_t address){
         verbprintf(1,"Link %i lost. Deregistering\n", address);
         mapRadioLinks.erase(address);
-        mqtt_send_avail(address, false);
+        mqtt_send_radio_link_avail(address, false);
 }
 
 void Registrar::registerLink(uint8_t address, uint8_t lqi){
@@ -72,7 +73,7 @@ void Registrar::registerLink(uint8_t address, uint8_t lqi){
         RADIOLINK* link = getLink(address);
         if(link == NULL){
             mapRadioLinks[address] = RADIOLINK(address, 0, lqi);
-            mqtt_send_avail(address, true);
+            mqtt_send_radio_link_avail(address, true);
         }else{
             link->packets_sent++;
             link->lqi = lqi;

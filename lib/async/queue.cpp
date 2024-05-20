@@ -82,7 +82,7 @@
             mapPacketAwaitAck.erase(it);
           }else{ //resend packet and increment the counter
             if (packet->retry >= MAX_RESEND_RETRY){
-              verbprintf(4, "Max resend reached for key %i. Dropping \n" , key );
+              verbprintf(4, "Max resend reached for key %i. Dropping. \n" , key );
               //mapPacketAwaitAck.erase(lastkey);   
               mapPacketAwaitAck.erase(it);
               registrar.incrErrCnt(ADDR_OF_KEY(key));

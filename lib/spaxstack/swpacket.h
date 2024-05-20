@@ -51,7 +51,8 @@ enum SWAPFUNCT
   SWAPFUNCT_QRY, // query packet
   SWAPFUNCT_CMD, // command packet
   SWAPFUNCT_ACK, // packet aknowledgment
-  SWAPFUNCT_ALARM // alarm packet
+  SWAPFUNCT_ALARM,  // alarm packet
+  SWAPFUNCT_DEV_INDENTIFIER
 };
 
 
