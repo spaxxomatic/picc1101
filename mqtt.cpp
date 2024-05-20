@@ -102,13 +102,13 @@ void mqtt_send_alarm(int actor_id, const char* alarm_text){
     safe_publish(topic.str().c_str(), strlen(alarm_text), alarm_text);
 }
 
-void mqtt_send_avail(int actor_id, bool avail){    
+void mqtt_send_radio_link_avail(int actor_id, bool avail){    
     std::ostringstream topic;
     topic << publish_avail_topic <<  std::to_string(actor_id) ;
     if (avail)
-        safe_publish(topic.str().c_str(), 1, "U");
+        safe_publish(topic.str().c_str(), 2, "UP");
     else
-        safe_publish(topic.str().c_str(), 0, ""); //delete message
+        safe_publish(topic.str().c_str(), 2, "DN"); 
 }
 
 
